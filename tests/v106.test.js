@@ -82,11 +82,14 @@ test('an ordinary chat gets only the short rules, no command dump', () => {
 });
 
 test('the knowledge is built from the real bot, so it follows updates: version, changelog and new commands', () => {
+  const brand = require('../core/brand');
   const version = require('../package.json').version;
-  assert.match(member('hello bot'), new RegExp(`TurboFex v${version.replace(/\./g, '\\.')}`));
+  const name = brand.botName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const v = version.replace(/\./g, '\\.');
+  assert.match(member('hello bot'), new RegExp(`${name} v${v}`));
   const news = member('what is the latest update, what changed?');
   assert.match(news, /LATEST CHANGES/);
-  assert.match(news, new RegExp(`TurboFex v${version.replace(/\./g, '\\.')}`));
+  assert.match(news, new RegExp(`(?:TurboFex|${name}) v${v}`));
   // a command that did not exist before is known at once
   const fake = [...all, { name: 'zorbify', category: 'fun', description: 'Zorbify a picture: zorbify (reply to a picture)', run() {} }];
   assert.match(knowledge.forQuestion({ question: 'how do I zorbify a picture', commandList: fake }), /\.zorbify .*Zorbify a picture/);

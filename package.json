@@ -1,6 +1,6 @@
 {
   "name": "5afful-v6",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "5AFFUL V6 - WhatsApp group management bot, powered by the TurboFex engine",
   "main": "index.js",
   "author": "Safful",

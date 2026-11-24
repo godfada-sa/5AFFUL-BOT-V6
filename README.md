@@ -1,4 +1,4 @@
-# ⚡ 5AFFUL V6 v1.0.1
+# ⚡ 5AFFUL V6 v1.0.2
 
 **5AFFUL V6 is a WhatsApp bot that helps you run your groups and gives your chats tools, games and fun.**
 It protects groups from spam and links, welcomes new members, answers questions, makes stickers, plays games, and more.
@@ -240,9 +240,7 @@ needs a city and shows `.weather Lagos`.
 
 ## Help and community
 
-- 💬 Support group (Telegram): https://t.me/+7PwU2Vo9czE1NTRk
-- 📣 Telegram channel: https://t.me/+e89lCBU2wLpjNWNk
-- 🟢 WhatsApp channel: https://whatsapp.com/channel/0029VbDpuKM8qIzkoQscOE2w
+- ✈️ Telegram: https://t.me/saf_ful
 - 💻 Source code and releases: https://github.com/godfada-sa/5AFFUL-BOT
 
 Developers: the project is plain Node.js (CommonJS, no build step). `npm test` runs the tests in `tests/`.
