@@ -5,6 +5,7 @@ const EventEmitter = require('events');
 const baileys = require('../core/baileys');
 const store = require('../whatsapp/store');
 const status = require('../whatsapp/status');
+const autoview = require('../whatsapp/autoview');
 console.log = () => {}; // the status engine prints emoji lines; they can upset Node's test runner, and the tests do not need them
 
 baileys.setForTests({ generateMessageIDV2: () => 'ID' + Math.random().toString(36).slice(2, 10).toUpperCase() });
@@ -17,6 +18,7 @@ const makeSock = (refuse = 'none') => {
   const sock = {
     ws, user: { id: '27899999999:1@s.whatsapp.net', lid: '999888777:1@lid' },
     sendReceipt: async (j, pt, ids, type) => { if (type !== 'read-self') log.push('view'); }, readMessages: async () => {},
+    sendNode: async () => {},
     sendMessage: async (to, c, o) => {
       const list = o.statusJidList;
       log.push(to === 'status@broadcast' ? `list[${list.map((x) => x.split('@')[1]).join(',')}]` : 'direct');
@@ -28,13 +30,15 @@ const makeSock = (refuse = 'none') => {
   return { sock, log };
 };
 
-test('the view goes out at once, also when a delay is set, and the like uses a LID-only list first', async () => {
+test('the view goes out at once, also when a like delay is set, and the like uses a LID-only list first', async () => {
   const cfg = store.statusCfg();
   cfg.view = true; cfg.like = true; cfg.delayMin = 1; cfg.delayMax = 1;
   status.settings.likeGapMs = 0;
   status.settings.retryWaitMs = 0;
   const { sock, log } = makeSock();
+  autoview.attach(sock); // the view is the status receipt engine's job, not the like engine's
   const t = Date.now();
+  autoview.onMessages({ messages: [post('S1')] });
   await status.handleStatus(sock, post('S1'));
   await wait(1800);
   assert.strictEqual(log[0], 'view');
@@ -48,8 +52,8 @@ test('when WhatsApp refuses the LID-only list, the next list is tried', async ()
   const { sock, log } = makeSock('lid');
   await status.handleStatus(sock, post('S2'));
   await wait(3200);
-  assert.strictEqual(log[1], 'list[lid,lid]');
-  assert.ok(log[2].startsWith('list[') && log[2] !== 'list[lid,lid]');
+  assert.strictEqual(log[0], 'list[lid,lid]');
+  assert.ok(log[1].startsWith('list[') && log[1] !== 'list[lid,lid]');
   assert.strictEqual(status.stats.route, 'status (mixed list) + direct');
   assert.ok(status.stats.rejected >= 1);
 });
@@ -60,13 +64,16 @@ test('when every list is refused, the like goes straight to the poster', async (
   assert.ok(log.includes('direct'));
   assert.strictEqual(status.stats.route, 'direct');
 });
-test('the daily like limit stops likes but not views', async () => {
+test('the daily like limit stops likes; the view still goes out', async () => {
   const cfg = store.statusCfg();
   const before = status.likeToday();
   cfg.dailyLikeLimit = before + 1;
   const { sock, log } = makeSock();
+  autoview.attach(sock);
+  autoview.onMessages({ messages: [post('S3')] });
   await status.handleStatus(sock, post('S3'));
   await wait(2500);
+  autoview.onMessages({ messages: [post('S4')] });
   await status.handleStatus(sock, post('S4'));
   await wait(2500);
   assert.strictEqual(status.likeToday(), before + 1);
@@ -98,22 +105,25 @@ test('only a real status counts: reactions, key updates and empty messages on th
   assert.strictEqual(status.stats.seen, before + 1, 'a text status is real');
 });
 
-test('old statuses (a backlog) are viewed but not liked; fresh ones are liked', async () => {
+test('old statuses (a backlog) are not liked; fresh ones are liked', async () => {
   const cfg = store.statusCfg();
   cfg.view = true; cfg.like = true; cfg.delayMin = 0; cfg.delayMax = 0; cfg.dailyLikeLimit = 0;
   const { sock, log } = makeSock();
+  autoview.attach(sock);
   const old = { ...post('OLD1'), messageTimestamp: Math.floor(Date.now() / 1000) - 5 * 3600 };
   await status.handleStatus(sock, old);
   await wait(2200);
-  assert.deepStrictEqual(log, ['view'], 'viewed, not liked');
+  assert.deepStrictEqual(log, [], 'not liked');
+  autoview.onMessages({ messages: [old] });
+  await wait(300);
+  assert.deepStrictEqual(log, ['view'], 'the view still goes out');
   await status.handleStatus(sock, old);
   await wait(300);
-  assert.deepStrictEqual(log, ['view'], 'and not tried again');
+  assert.deepStrictEqual(log, ['view'], 'and it is not liked on a redelivery');
   log.length = 0;
   await status.handleStatus(sock, post('NEW1'));
   await wait(3500); // the bot keeps a pause of about 1.5 seconds between two likes
-  assert.strictEqual(log[0], 'view');
-  assert.ok(log.length >= 2 && log[1] !== 'view', 'a fresh status is liked (by a list or directly, depending on what earlier tests broke)');
+  assert.ok(log.length >= 2 && log[0] !== 'view', 'a fresh status is liked (by a list or directly, depending on what earlier tests broke)');
 });
 
 // v1.7.2: likes WhatsApp never answered are counted separately, and the waiting for the answer always stops
@@ -153,13 +163,15 @@ test('v1.7.2: statusinfo lists the last likes as confirmed, no answer, or failed
 // v1.7.3: likes work for posters with read receipts off, and the owner sees the like
 test('v1.7.3: the view also sends the private "read-self" receipt, next to the normal one', async () => {
   const types = [];
-  const sock = { sendReceipt: async (j, p, ids, type) => { types.push(type); }, readMessages: async () => {} };
+  const nodes = [];
+  const sock = { sendReceipt: async (j, p, ids, type) => { types.push(type); }, sendNode: async (n) => nodes.push(n), readMessages: async () => {} };
   await status.markViewed(sock, post('V1'), '222488650874994@lid');
   assert.ok(types.includes('read'), 'the poster still gets the real view receipt');
   assert.ok(types.includes('read-self'), 'WhatsApp also gets the private view receipt');
+  assert.strictEqual(nodes[0].attrs.class, 'status', 'and the native status receipt that shows the view');
 });
 test('v1.7.3: a failing private receipt never breaks the view', async () => {
-  const sock = { sendReceipt: async (j, p, ids, type) => { if (type === 'read-self') throw new Error('nope'); }, readMessages: async () => {} };
+  const sock = { sendReceipt: async (j, p, ids, type) => { if (type === 'read-self') throw new Error('nope'); }, sendNode: async () => {}, readMessages: async () => {} };
   await status.markViewed(sock, post('V2'), '222488650874994@lid');
 });
 test('v1.7.3: a like refused at first is tried again after the view is registered again', async () => {

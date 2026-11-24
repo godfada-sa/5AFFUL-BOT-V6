@@ -1,3 +1,11 @@
+5AFFUL V6 v1.0.3 - the status view the poster really sees, and deleted-status copies from 5AFFUL's own engine
+CHANGED IN 1.0.3
+- FIXED `.autostatus` (and `.autoviewstatus`) marked a status as read, but the poster's phone did not show the view. WhatsApp only registers a view when the receipt carries its `class="status"` marker, and the plain "read" receipt does not have it. The bot now sends exactly what 5AFFUL-BOT sends: the read receipt, the private read receipt, and the native `class="status"` receipt node with the poster as participant. The view is also noted in the bot's own store, so `statusinfo` counts it.
+- NEW: statuses that arrive as raw WhatsApp status packets (not the usual incoming-message event) are handled too, so the 1-10 minute delay never misses a new personal status.
+- FIXED `.statusdeleted on` (`.savedelstatus`) now runs the deleted-status engine of 5AFFUL-BOT itself. A status is stored under a key made from its id and its author (the same status arriving twice is one record), the media is written to `data/deleted-status`, records and media expire after 24 hours, the cache is capped at 64 MB, 200 statuses and 16 MB per status, and a copy goes out only when exactly one kept status matches the delete notice. The copy is titled "Deleted status from <name>".
+- FIXED the bot never views its own status or the owner's status, and `.autostatus off` clears every view that was still waiting.
+- NOTE: the view and the deleted-status copy depend on WhatsApp accepting the same receipt and media that 5AFFUL-BOT uses. Check the view once on the poster's phone after updating.
+
 5AFFUL V6 v1.0.2 - silent tags, an autostatus that answers, working deleted-status copies, one Telegram link
 CHANGED IN 1.0.2
 - FIXED the tag commands: `.tag` / `.hidetag` now tag SILENTLY, the way 5AFFUL's own bot does. Nothing is printed any more: not the text typed after the command, and not the message that is answered. The body is a single invisible character that carries the mentions, so everybody is still notified while the chat shows no text at all.

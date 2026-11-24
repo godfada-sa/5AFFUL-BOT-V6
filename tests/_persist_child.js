@@ -33,6 +33,7 @@ const makeSock = () => {
   const sock = {
     ws, user: { id: '27899999999:1@s.whatsapp.net', lid: '999888777:1@lid' },
     sendReceipt: async (j, pt, ids, type) => { if (type !== 'read-self') log.push('view'); }, readMessages: async () => {},
+    sendNode: async () => {},
     sendMessage: async (to, c, o) => {
       log.push(to === 'status@broadcast' ? 'like' : 'direct');
       setTimeout(() => ws.emit(`CB:ack,id:${o.messageId}`, { attrs: {} }), 2);
@@ -72,13 +73,18 @@ const post = (id) => ({ key: { remoteJid: 'status@broadcast', id, participant: '
     });
   } else if (action === 'status-run') {
     const status = require(path.join(ROOT, 'whatsapp/status'));
+    const autoview = require(path.join(ROOT, 'whatsapp/autoview'));
     status.settings.likeGapMs = 0;
     const baileys = require(path.join(ROOT, 'core/baileys'));
     baileys.setForTests({ generateMessageIDV2: () => `ID${Math.random().toString(36).slice(2, 10).toUpperCase()}` });
-    store.updateStatusCfg((s) => { s.view = true; s.like = true; s.dailyLikeLimit = 5; s.delayMin = 0; s.delayMax = 0; });
+    store.updateStatusCfg((s) => { s.view = true; s.like = true; s.dailyLikeLimit = 5; s.delayMin = 0; s.delayMax = 0; s.viewDelayMin = 0; });
     const { sock, log } = makeSock();
+    autoview.attach(sock);
     const ids = String(arg).split(',').filter(Boolean);
-    for (const id of ids) await status.handleStatus(sock, post(id));
+    for (const id of ids) {
+      autoview.onMessages({ messages: [post(id)] }); // the view (the native status receipt)
+      await status.handleStatus(sock, post(id)); // the like / save
+    }
     await wait(2500 + ids.length * 250);
     out({ likeToday: status.likeToday(), liked: status.stats.liked, viewed: status.stats.viewed, seen: status.stats.seen, limited: status.stats.limited, likesSent: log.filter((x) => x === 'like').length, viewsSent: log.filter((x) => x === 'view').length });
   } else if (action === 'status-get') {

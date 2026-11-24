@@ -16,6 +16,8 @@ const SKIP_DIRS = new Set(['node_modules', 'session', 'data', 'accounts', '.git'
 const SKIP_FILES = new Set([
   'config.env', '.env', 'session_id.txt', 'update.json', 'accounts.json',
   '5afful-v6.log', '5afful-v6.prev.log', '5afful-md.log',
+  // working files that must never travel with a build
+  'qr.png', 'qr-url.txt', 'qr-live.html', 'PAIR-SITE.md',
 ]);
 const VERSION = require(path.join(ROOT, 'package.json')).version;
 

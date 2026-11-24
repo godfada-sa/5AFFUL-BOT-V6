@@ -8,6 +8,8 @@ const assert = require('node:assert');
 const store = require('../whatsapp/store');
 const cmds = require('../commands/statuscmds');
 const tags = require('../commands/hidetag');
+const autoview = require('../whatsapp/autoview');
+const EventEmitter = require('events');
 
 const GROUP = '120363000000000181@g.us';
 const ADMIN = '27800000001@s.whatsapp.net';
@@ -117,4 +119,74 @@ test('autostatus refuses 0 and 11 and says what to use', async () => {
   assert.match(answer, /between 1 and 10/);
   assert.match(await runStatus('0'), /between 1 and 10/);
   assert.strictEqual(store.statusCfg().viewDelayMin, 0);
+});
+
+// ---- the status receipt itself: a plain "read" receipt does not show a view, class="status" does
+const viewSock = () => {
+  const receipts = [];
+  const nodes = [];
+  const updates = [];
+  const sock = {
+    ev: new EventEmitter(),
+    ws: { isOpen: true },
+    user: { id: '27899999999:1@s.whatsapp.net' },
+    sendReceipt: async (jid, who, ids, type) => receipts.push({ jid, who, ids, type }),
+    sendNode: async (node) => nodes.push(node),
+    readMessages: async () => {},
+  };
+  sock.ev.on('messages.update', (list) => updates.push(...list));
+  autoview.attach(sock);
+  return { sock, receipts, nodes, updates };
+};
+
+test('autostatus: the view is the native receipt with class="status" and the author as participant', async () => {
+  const { sock, receipts, nodes, updates } = viewSock();
+  const key = { remoteJid: 'status@broadcast', participant: '27833333333@s.whatsapp.net', id: 'AV1', fromMe: false };
+  await autoview.markSeen(sock, key, {});
+  assert.ok(receipts.some((r) => r.type === 'read' && r.jid === 'status@broadcast' && r.ids[0] === 'AV1'), 'the poster gets the read receipt');
+  assert.strictEqual(nodes.length, 1);
+  assert.deepStrictEqual(nodes[0], {
+    tag: 'receipt',
+    attrs: { id: 'AV1', type: 'read', class: 'status', to: 'status@broadcast', participant: '27833333333@s.whatsapp.net' },
+  });
+  assert.strictEqual(updates[0].update.statusAlreadyViewed, true, 'the bot store notes the view');
+});
+
+test('autostatus: a status arriving in instant mode is viewed at once', async () => {
+  store.updateStatusCfg((s) => { s.view = true; s.viewDelayMin = 0; });
+  const { sock, nodes } = viewSock();
+  autoview.onMessages({ messages: [{ key: { remoteJid: 'status@broadcast', participant: '27844444444@s.whatsapp.net', id: 'AV2', fromMe: false } }] });
+  await new Promise((r) => setTimeout(r, 50));
+  assert.strictEqual(nodes.length, 1);
+  assert.strictEqual(nodes[0].attrs.id, 'AV2');
+});
+
+test('autostatus 5: the view waits five minutes, and off clears what is waiting', async () => {
+  store.updateStatusCfg((s) => { s.view = true; s.viewDelayMin = 5; });
+  autoview._pending.clear();
+  const { sock } = viewSock();
+  autoview.onMessages({ messages: [{ key: { remoteJid: 'status@broadcast', participant: '27855555555@s.whatsapp.net', id: 'AV3', fromMe: false } }] });
+  const entry = autoview._pending.get('AV3');
+  assert.ok(entry, 'the view is waiting');
+  const wait = entry.dueAt - entry.queuedAt;
+  assert.ok(wait >= 5 * 60000 - 1000 && wait <= 5 * 60000 + 1000, `about five minutes (${wait} ms)`);
+
+  await runStatus('off');
+  assert.strictEqual(autoview._pending.size, 0, 'switching off drops the waiting views');
+  assert.strictEqual(autoview.mode(), 'off');
+  void sock;
+});
+
+test('autostatus: the bot never views its own status or the owner\'s', async () => {
+  store.updateStatusCfg((s) => { s.view = true; s.viewDelayMin = 0; });
+  autoview._pending.clear();
+  const { sock, nodes } = viewSock();
+  autoview.onMessages({ messages: [
+    { key: { remoteJid: 'status@broadcast', participant: '27899999999@s.whatsapp.net', id: 'AV4' } },
+    { key: { remoteJid: 'status@broadcast', participant: '27800000001@s.whatsapp.net', id: 'AV5' } },
+  ] });
+  await new Promise((r) => setTimeout(r, 30));
+  assert.strictEqual(nodes.length, 0);
+  assert.strictEqual(autoview._pending.size, 0);
+  void sock;
 });
