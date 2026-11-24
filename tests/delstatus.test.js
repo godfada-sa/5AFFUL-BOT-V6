@@ -1,4 +1,4 @@
-// Deleted-status copies (the flow of 5AFFUL-BOT's .savedelstatus).
+// Deleted-status copies: keep a status, and send a copy when its owner deletes it.
 // A status is kept when it arrives (media on disk, a small record for the rest) and the copy is sent to
 // the owner when the poster deletes it. The copy survives a restart, goes out once, and a failed send is
 // kept for a retry. The keys on disk are sha256(status id + author), exactly like the reference.

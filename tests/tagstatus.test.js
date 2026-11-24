@@ -1,4 +1,4 @@
-// Silent tags (5AFFUL style) and the status auto-view command.
+// Silent tags and the status auto-view command.
 // The tag commands must NEVER echo text back: everybody is notified through the
 // mentions, the body stays invisible. The autostatus command must always answer,
 // so the owner can see that it took the 1-10 minute delay.

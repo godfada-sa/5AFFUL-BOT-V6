@@ -1,6 +1,6 @@
 'use strict';
 
-// .save: reply to a status and only that status is kept (5AFFUL's command name for this).
+// .save: reply to a status and only that status is kept.
 
 require('./_setup');
 const test = require('node:test');
@@ -23,7 +23,7 @@ const run = (sock, reply) => cmd.run({
   reply: reply || (async () => { throw new Error('no reply expected on success'); }),
 });
 
-test('save: it is the command 5AFFUL uses, owner only', () => {
+test('save: it is owner only, with its aliases', () => {
   assert.ok(cmd, 'the save command exists');
   assert.strictEqual(cmd.category, 'status');
   assert.strictEqual(cmd.ownerOnly, true);

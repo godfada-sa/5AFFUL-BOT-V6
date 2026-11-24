@@ -41,7 +41,7 @@ function readEntries(root, env) {
 const upper = (name) => name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
 
 // A per-account setting from the host: NUMBER_DEVICE_2, PREFIX_DEVICE_2,
-// TIMEZONE_DEVICE_2, SUDO_DEVICE_2 (the launcher turns 5AFFUL's NUMBER_2
+// TIMEZONE_DEVICE_2, SUDO_DEVICE_2 (the launcher turns NUMBER_2
 // into these names). An entry in accounts.json always wins.
 const fromEnv = (env, key, name) => String((env && env[`${key}_${upper(name)}`]) || '').trim();
 
