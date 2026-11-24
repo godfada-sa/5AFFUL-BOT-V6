@@ -1,0 +1,14 @@
+node_modules/
+session/
+data/
+.env
+config.env
+*.log
+session_id.txt
+# local-only files (notes, helper scripts): never published
+*.private.*
+accounts/
+accounts.json
+dist/
+*.tar.gz
+*.zip

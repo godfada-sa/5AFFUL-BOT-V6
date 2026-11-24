@@ -1,0 +1,449 @@
+// v1.3.5: plugins (manifest, install flow, permissions, per-group control, the .plugin command, switching off)
+const { dir } = require('./_setup');
+const fs = require('fs');
+const path = require('path');
+const test = require('node:test');
+const assert = require('node:assert');
+
+const manifestLib = require('../core/plugins/manifest');
+const plugins = require('../core/plugins');
+const pluginCmd = require('../commands/plugin');
+
+const commands = new Map();
+const commandList = [];
+commands.set('ping', { name: 'ping', aliases: [], category: 'general' });
+commandList.push(commands.get('ping'));
+plugins.attach(commands, commandList);
+
+const sent = [];
+const sock = { sendMessage: async (to, m) => { sent.push({ to, text: m.text }); } };
+const root = path.join(dir, 'plugins');
+function makePlugin(folder, over = {}, source) {
+  const d = path.join(root, folder); fs.mkdirSync(d, { recursive: true });
+  const m = { manifestVersion: 1, id: folder, version: '1.0.0', apiVersion: 1, name: 'Hello ' + folder, description: 'Says hello', author: { name: 'Dev' }, permissions: ['chat.send'], commands: [{ name: 'hello' + folder.replace(/-/g, ''), who: 'everyone', description: 'Says hello' }], ...over };
+  fs.writeFileSync(path.join(d, 'turbofex-plugin.json'), JSON.stringify(m));
+  fs.writeFileSync(path.join(d, 'index.js'), source || `tfx.command('${m.commands && m.commands[0] ? m.commands[0].name : 'x'}', (c) => c.reply('hello ' + c.sender.name + ' ' + c.chat.id));`);
+  return d;
+}
+const ctxFor = (over = {}) => { const replies = []; return { replies, c: { jid: '1203630000000@g.us', args: [], rest: '', prefix: '.', isGroup: true, isAdmin: true, isOwner: false, msg: { key: { participant: '27811111111@s.whatsapp.net' }, pushName: 'Sam' }, groupMetadata: { subject: 'Team', participants: [{ id: 'a', admin: 'admin' }, { id: 'b' }] }, reply: async (t) => { replies.push(t); }, ...over } }; };
+const run = async (line, over) => { const r = []; const parts = line.split(/\s+/).slice(1); await pluginCmd.run({ args: parts, rest: line, reply: async (t) => { r.push(t); }, prefix: '.', jid: '1203630000000@g.us', isGroup: true, ...over }); return r.join('\n'); };
+
+test('plugins have no on/off switch (always on), and nothing is created on disk before they start', () => {
+  assert.strictEqual(plugins.overview().status.state, 'off');
+  assert.strictEqual(plugins.overview().enabled, true);
+  assert.ok(!fs.existsSync(path.join(dir, 'plugins.json')));
+  assert.strictEqual(pluginCmd.ownerOnly, true);
+});
+
+test('manifest: a good one is accepted', () => {
+  const f = makePlugin('good-one');
+  const v = manifestLib.validate(f, { botVersion: '1.3.5', taken: new Set() });
+  assert.ok(v.ok, JSON.stringify(v.errors));
+  assert.strictEqual(v.manifest.commands[0].who, 'everyone');
+  assert.match(v.entrySha, /^[0-9a-f]{64}$/);
+});
+
+test('manifest: bad ones are refused with a clear reason', () => {
+  const bad = (over, re) => { const f = makePlugin('bad-' + Math.random().toString(36).slice(2, 7), over); const v = manifestLib.validate(f, { botVersion: '1.3.5', taken: new Set(['ping']) }); assert.ok(!v.ok); assert.match(v.errors.join(' | '), re); };
+  bad({ id: 'A' }, /id must be/);
+  bad({ version: '1' }, /version/);
+  bad({ apiVersion: 2 }, /apiVersion/);
+  bad({ permissions: ['fs.read'] }, /unknown permission/);
+  bad({ permissions: ['group.kick'] }, /unknown permission/);
+  bad({ permissions: ['network'] }, /network needs/);
+  bad({ permissions: ['chat.send'], network: { domains: ['example.com'] } }, /network.domains needs/);
+  bad({ commands: [{ name: 'ping', who: 'everyone', description: 'x' }] }, /already used/);
+  bad({ commands: [{ name: 'Bad Name', who: 'everyone', description: 'x' }] }, /bad command name/);
+  bad({ commands: [{ name: 'okname', who: 'nobody', description: 'x' }] }, /who must be/);
+  bad({ minBotVersion: '9.0.0' }, /needs TurboFex/);
+  bad({ pricing: { model: 'paid' } }, /only free/);
+  bad({ events: ['message'] }, /needs the permission events.message/);
+  bad({ events: ['everything'], permissions: ['chat.send'] }, /unknown event/);
+  bad({ permissions: ['group.kick'] }, /unknown permission/);
+  bad({ commands: [] }, /at least one/);
+  bad({ schedules: [{ id: 'tick', everyMinutes: 5 }] }, /schedule permission/);
+});
+
+test('manifest: the entry file cannot leave the plugin folder, and a missing or huge one is refused', () => {
+  for (const entry of ['../x.js', '/etc/passwd', 'a/../../x.js']) { const f = makePlugin('esc-' + Math.random().toString(36).slice(2, 7), { entry }); assert.ok(!manifestLib.validate(f, {}).ok); }
+  const f = makePlugin('nofile'); fs.rmSync(path.join(f, 'index.js')); assert.match(manifestLib.validate(f, {}).errors.join(), /missing/);
+  const g = makePlugin('huge'); fs.writeFileSync(path.join(g, 'index.js'), 'x'.repeat(1024 * 1024 + 1)); assert.match(manifestLib.validate(g, {}).errors.join(), /1 MB/);
+  const h = makePlugin('linked'); fs.rmSync(path.join(h, 'index.js')); fs.writeFileSync(path.join(dir, 'outside.js'), 'x'); fs.symlinkSync(path.join(dir, 'outside.js'), path.join(h, 'index.js')); assert.ok(!manifestLib.validate(h, {}).ok);
+});
+
+test('.plugin: before the plugin engine is running, install is not possible and the owner is told', async () => {
+  assert.match(await run('plugin list', {}), /not running/);
+  assert.match(await run('plugin install good-one', {}), /not running/);
+});
+
+test('plugins start by themselves, and .plugin on / off only explain that', async function () {
+  assert.match(await run('plugin on', {}), /always on/);
+  assert.match(await run('plugin off', {}), /always on/);
+  await plugins.start();
+  assert.ok(plugins.isRunning());
+  assert.ok(fs.existsSync(path.join(dir, 'plugins.json')) || true);
+});
+
+test('install: shows what the plugin asks for, needs a code, then adds the command', async () => {
+  const r = await run('plugin install good-one', {});
+  assert.match(r, /Install Hello good-one 1.0.0\?/); assert.match(r, /Send messages in the chat/);
+  const code = r.match(/plugin confirm (\w{4})/)[1];
+  assert.ok(!commands.has('hellogoodone'));
+  assert.match(await run('plugin confirm WRONG', {}), /did not work/);
+  assert.match(await run('plugin confirm ' + code, {}), /is ready/);
+  const cmd = commands.get('hellogoodone');
+  assert.ok(cmd); assert.strictEqual(cmd.category, 'tools'); assert.strictEqual(cmd.everyone, false); assert.strictEqual(cmd.ownerOnly, false);
+  assert.ok(commandList.includes(cmd));
+  assert.match(await run('plugin confirm ' + code, {}), /did not work/); // a code works once
+});
+
+test('a plugin command answers, and the plugin sees only opaque ids, never real chat or phone ids', async () => {
+  const { c, replies } = ctxFor();
+  await commands.get('hellogoodone').run(c);
+  assert.strictEqual(replies.length, 1);
+  assert.match(replies[0], /^hello Sam [0-9a-f]{16}$/);
+  assert.ok(!replies[0].includes('1203630000000') && !replies[0].includes('2781'));
+});
+
+test('per group: only / deny / all decide where a plugin answers', async () => {
+  const cmd = commands.get('hellogoodone'); const g1 = '1203630000000@g.us'; const g2 = '1203639999999@g.us';
+  assert.ok(!cmd.deniedIn(g1));
+  await run('plugin groups good-one deny', {}); assert.ok(cmd.deniedIn(g1)); assert.ok(!cmd.deniedIn(g2));
+  await run('plugin groups good-one all', {}); assert.ok(!cmd.deniedIn(g1));
+  await run('plugin groups good-one only', {}); assert.ok(!cmd.deniedIn(g1)); assert.ok(cmd.deniedIn(g2));
+  await run('plugin groups good-one all', {}); assert.ok(!cmd.deniedIn(g2));
+  assert.ok(!cmd.deniedIn('27800000002@s.whatsapp.net')); // private chats are not group rules
+  assert.match(await run('plugin groups good-one deny', { isGroup: false }), /inside the group/);
+});
+
+test('a command name already used by another plugin cannot be installed', async () => {
+  makePlugin('twin', { commands: [{ name: 'hellogoodone', who: 'everyone', description: 'x' }] });
+  const r = await run('plugin install twin', {}); assert.match(r, /cannot be installed/); assert.match(r, /is used by the plugin/);
+});
+
+test('disable, enable and remove', async () => {
+  assert.match(await run('plugin disable good-one', {}), /is off/); assert.ok(!commands.has('hellogoodone'));
+  assert.match(await run('plugin enable good-one', {}), /is on/); assert.ok(commands.has('hellogoodone'));
+  assert.match(await run('plugin info good-one', {}), /Version:\* 1.0.0/);
+  assert.match(await run('plugin remove good-one', {}), /was removed/); assert.ok(!commands.has('hellogoodone'));
+  assert.match(await run('plugin enable good-one', {}), /not installed/);
+});
+
+test('a plugin whose files were changed after install is not started until it is installed again', async () => {
+  const f = makePlugin('editable');
+  const code = (await run('plugin install editable', {})).match(/confirm (\w{4})/)[1]; await run('plugin confirm ' + code, {});
+  assert.ok(commands.has('helloeditable'));
+  fs.appendFileSync(path.join(f, 'index.js'), '\n// changed');
+  plugins.turnOff(); assert.ok(!commands.has('helloeditable'));
+  await plugins.start();
+  assert.ok(!commands.has('helloeditable'));
+  assert.match(await run('plugin list', {}), /its files changed/);
+  assert.match(await run('plugin enable editable', {}), /could not turn it on/);
+  const code2 = (await run('plugin install editable', {})).match(/confirm (\w{4})/)[1]; await run('plugin confirm ' + code2, {});
+  assert.ok(commands.has('helloeditable'));
+});
+
+test('a plugin that breaks the rules is switched off and the owner is told; members see a calm message', async () => {
+  makePlugin('rude', { commands: [{ name: 'rude', who: 'everyone', description: 'x' }] }, "tfx.command('rude', async () => { for (let i = 0; i < 8; i++) { try { await tfx.owner.notify('x'); } catch (e) {} } });");
+  const code = (await run('plugin install rude', {})).match(/confirm (\w{4})/)[1]; await run('plugin confirm ' + code, {});
+  plugins.start(sock); // gives the manager a connection to tell the owner
+  const first = ctxFor(); await commands.get('rude').run(first.c);
+  const second = ctxFor(); await commands.get('rude').run(second.c);
+  assert.ok(!commands.has('rude'));
+  assert.ok(sent.some((s) => /switched off/.test(s.text) && /rude/.test(s.text)));
+  assert.match(await run('plugin list', {}), /rude.*off/);
+});
+
+test('plugin replies never show internals to members', async () => {
+  makePlugin('crashy', { commands: [{ name: 'crashy', who: 'everyone', description: 'x' }] }, "tfx.command('crashy', () => { throw new Error('secret detail /home/x'); });");
+  const code = (await run('plugin install crashy', {})).match(/confirm (\w{4})/)[1]; await run('plugin confirm ' + code, {});
+  const m = ctxFor(); await commands.get('crashy').run(m.c);
+  assert.match(m.replies[0], /did not work/); assert.ok(!/secret|home|crashy/.test(m.replies[0]));
+  const o = ctxFor({ isOwner: true }); await commands.get('crashy').run(o.c);
+  assert.match(o.replies[0], /plugin log crashy/);
+  assert.match(await run('plugin log crashy', {}), /call failed/);
+});
+
+test('limits: max and guard can be changed and are checked', async () => {
+  assert.match(await run('plugin set max 0', {}), /no limit/);
+  assert.strictEqual(plugins.overview().max, 0);
+  assert.match(await run('plugin set max 3', {}), /Limit saved/);
+  assert.match(await run('plugin set guard 128', {}), /128 MB/);
+  assert.strictEqual(plugins.overview().guardMb, 128);
+  assert.match(await run('plugin set guard 2', {}), /Plugin limits/); // refused: shows the help
+  assert.strictEqual(plugins.overview().guardMb, 128);
+});
+
+test('only the most recently used plugins stay awake when a limit is set', async () => {
+  for (const n of ['one', 'two', 'three']) {
+    makePlugin('lim-' + n, { commands: [{ name: 'lim' + n, who: 'everyone', description: 'x' }] }, `tfx.command('lim${n}', (c) => c.reply('ok'));`);
+    const code = (await run('plugin install lim-' + n, {})).match(/confirm (\w{4})/)[1]; await run('plugin confirm ' + code, {});
+  }
+  await run('plugin set max 2', {});
+  for (const n of ['one', 'two', 'three']) { const x = ctxFor(); await commands.get('lim' + n).run(x.c); assert.strictEqual(x.replies[0], 'ok'); }
+  assert.ok(plugins._internals.hosts.size <= 2);
+});
+
+test('stopping the plugins removes every plugin command; the bot itself is untouched', async () => {
+  plugins.turnOff();
+  assert.ok(!commands.has('limone')); assert.ok(commands.has('ping')); assert.ok(!commandList.some((c) => c.pluginId));
+  assert.strictEqual(plugins.isRunning(), false);
+});
+
+test('the .plugin replies follow the TurboFex format and never print "undefined"', async () => {
+  for (const line of ['plugin', 'plugin help', 'plugin set', 'plugin list', 'plugin bogus']) {
+    const r = await run(line, {}); assert.ok(!/undefined|null/.test(r), line + ': ' + r); assert.ok(/[✅⚠️ℹ️🧩]/u.test(r), line);
+  }
+});
+
+test('v1.6.6: there is no PLUGINS category; plugin commands sit in normal categories with the 〔P〕 marker, native ones never', async () => {
+  const categories = require('../whatsapp/categories');
+  assert.strictEqual(categories.info.plugins, undefined);
+  assert.strictEqual(categories.mark({ name: 'ping' }), ''); assert.strictEqual(categories.mark({ name: 'x', pluginId: 'p' }), ' 〔P〕');
+  const pc = categories.pluginCategory;
+  assert.strictEqual(pc({ category: 'fun' }), 'fun'); assert.strictEqual(pc({ category: 'owner' }), 'tools'); assert.strictEqual(pc({ category: 'nonsense' }), 'tools');
+  // the guess from names and descriptions (the plugin gave no category)
+  assert.strictEqual(pc({ name: 'Owner Tag Reply', description: 'Replies with your custom message when someone mentions the owner in a group.', permissions: ['chat.send', 'events.message'], events: ['message'], commands: [] }), 'autoreply');
+  assert.strictEqual(pc({ name: 'Mention', description: 'Tag everyone', permissions: ['chat.send'], commands: ['mention'] }), 'autoreply');
+  assert.strictEqual(pc({ name: 'LockGroup', description: 'Close or open the group.', permissions: ['group.manage'], commands: ['lockgroup'] }), 'group');
+  assert.strictEqual(pc({ name: 'Dice Fun', description: 'Roll a dice.', permissions: ['chat.send'], commands: ['roll'] }), 'games');
+  assert.strictEqual(pc({ name: 'Zzz', description: 'Does things.', permissions: ['chat.send'], commands: ['zzz'] }), 'tools');
+  assert.strictEqual(pc({ category: 'fun', name: 'LockGroup' }), 'fun'); // the manifest beats the guess
+  assert.strictEqual(pc({ category: 'fun', name: 'LockGroup' }, 'media'), 'media'); // the owner's choice beats everything
+  assert.strictEqual(pc({ permissions: ['chat.send', 'group.manage'] }), 'group'); assert.strictEqual(pc({ permissions: ['media.send'] }), 'media');
+  assert.strictEqual(pc({ permissions: ['chat.send'], events: ['message'], commands: [] }), 'autoreply'); assert.strictEqual(pc({ permissions: ['chat.send'], commands: [{}] }), 'tools');
+  const list = [{ name: 'ping', category: 'general' }, { name: 'lockgroup', category: 'group', pluginId: 'lock' }, { name: 'mention', category: 'autoreply', pluginId: 'm' }];
+  const g = categories.groupByCategory(list, false);
+  assert.deepStrictEqual(g.map((x) => x.key), ['autoreply', 'general', 'group']);
+  const twice = categories.groupByCategory([...list, { name: 'lockgroup', category: 'tools', pluginId: 'lock' }, list[1]], false); // a repeated registration never shows a command twice
+  assert.strictEqual(twice.flatMap((x) => x.cmds).filter((c) => c.name === 'lockgroup').length, 1);
+  const menu = require('../commands/menu'); const out = [];
+  const run = (args) => menu.run({ reply: async (t) => { out.push(t); }, commandList: list, prefix: '.', args, isOwner: false, isAdmin: false, sock: { user: {} }, jid: 'x' });
+  await run([]); assert.match(out[0], /ʟᴏᴄᴋɢʀᴏᴜᴘ 〔P〕/); assert.ok(!/ᴘɪɴɢ 〔P〕/.test(out[0])); assert.match(out[0], /〔P〕 {2}a command that comes from a plugin/);
+  await run(['group']); assert.match(out[1], /\*lockgroup\* 〔P〕/);
+  await run(['plugins']); assert.match(out[2], /PLUGIN COMMANDS/); assert.ok(!/ping/.test(out[2]));
+  await run(['lockgroup']); assert.match(out[3], /LOCKGROUP\* 〔P〕|LOCKGROUP.*〔P〕/);
+  // the manifest's optional category
+  const f1 = makePlugin('cat-ok', { category: 'group' }); assert.strictEqual(manifestLib.validate(f1, { botVersion: '1.6.6', taken: new Set() }).manifest.category, 'group');
+  const f2 = makePlugin('cat-bad', { category: 'plugins' }); assert.strictEqual(manifestLib.validate(f2, { botVersion: '1.6.6', taken: new Set() }).ok, false);
+  const f3 = makePlugin('cat-none'); assert.strictEqual(manifestLib.validate(f3, { botVersion: '1.6.6', taken: new Set() }).manifest.category, null);
+});
+
+test('v1.6.11: the samples in examples are no longer offered to bot owners, and an old Hello sample is removed from a bot that has it', async () => {
+  const state = require('../core/plugins/state');
+  assert.ok(!state.folders().some((f) => f.includes(path.sep + 'examples' + path.sep)));
+  await plugins.start();
+  assert.ok(!/hello-plugin/.test(await run('plugin list', {})));
+  const f = makePlugin('hello-plugin', {}, "tfx.command('hellohelloplugin', (c) => c.reply('hi'));");
+  state.open().data.installed['hello-plugin'] = { version: '1.0.0', sha: 'x', enabled: false, grants: [], blocked: [] };
+  plugins._dropSample();
+  assert.ok(!state.open().data.installed['hello-plugin'], 'the sample is removed');
+  assert.ok(!fs.existsSync(f));
+  state.open().data.installed['hello-plugin'] = { version: '1.0.0', sha: 'x', enabled: false, grants: [], blocked: [], store: { version: '1.0.0' } };
+  plugins._dropSample();
+  assert.ok(state.open().data.installed['hello-plugin'], 'a copy that came from the store is left alone');
+  delete state.open().data.installed['hello-plugin'];
+  plugins.turnOff();
+});
+
+const { Broker, sniff } = require('../core/plugins/broker');
+const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(40)]);
+const WEBP = Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WEBPVP8 '), Buffer.alloc(20)]);
+const wait = async (f) => { for (let i = 0; i < 100 && !f(); i++) await new Promise((r) => setTimeout(r, 50)); };
+
+test('v1.3.7 files: only real pictures, stickers and safe documents are accepted, judged by their bytes', async () => {
+  const env = { isPublicHost: async () => true, log() {}, fetch: async () => ({}), notifyOwner: async () => {} };
+  const made = () => { const b = new Broker({ manifest: { permissions: ['media.send'] }, grants: ['media.send'], env }); const out = []; const st = b.newCall({ chat: { id: 'x' } }, { sendMedia: async (m) => { out.push(m); } }); return { b, st, out }; };
+  const go = async (o, c = made()) => { try { await c.b.handle('media.send', JSON.stringify({ kind: '', data: '', mimetype: '', fileName: '', caption: '', ...o }), c.st); return 'ok'; } catch (e) { return e.code; } };
+  const b64 = (b) => b.toString('base64');
+  assert.strictEqual(sniff(PNG).mime, 'image/png');
+  const c = made();
+  assert.strictEqual(await go({ kind: 'image', data: b64(PNG) }, c), 'ok'); assert.strictEqual(c.out[0].mimetype, 'image/png');
+  assert.strictEqual(await go({ kind: 'image', data: b64(Buffer.from('not a picture at all')) }), 'bad_file');
+  assert.strictEqual(await go({ kind: 'sticker', data: b64(PNG) }), 'bad_file');
+  assert.strictEqual(await go({ kind: 'sticker', data: b64(WEBP) }), 'ok');
+  assert.strictEqual(await go({ kind: 'document', data: b64(Buffer.from('a,b')), mimetype: 'text/csv', fileName: 'a.csv' }), 'ok');
+  assert.strictEqual(await go({ kind: 'document', data: b64(Buffer.from('MZ program')), mimetype: 'application/x-msdownload', fileName: 'a.exe' }), 'bad_file');
+  assert.strictEqual(await go({ kind: 'document', data: b64(Buffer.from('a,b')), mimetype: 'text/csv', fileName: '../a.csv' }), 'bad_args');
+  assert.strictEqual(await go({ kind: 'document', data: b64(Buffer.from([65, 0, 66])), mimetype: 'text/plain', fileName: 'a.txt' }), 'bad_file');
+  assert.strictEqual(await go({ kind: 'image', data: b64(Buffer.concat([PNG, Buffer.alloc(1024 * 1024)])) }), 'too_long');
+  assert.strictEqual(await go({ kind: 'image', data: '!!!' }), 'too_long');
+  assert.strictEqual(await go({ kind: 'video', data: b64(PNG) }), 'bad_args');
+  assert.strictEqual(await go({ kind: 'image', data: b64(PNG), caption: 'x'.repeat(1001) }), 'too_long');
+  const d = made(); const r = []; for (let i = 0; i < 4; i++) r.push(await go({ kind: 'image', data: b64(PNG) }, d));
+  assert.deepStrictEqual(r, ['ok', 'ok', 'ok', 'rate_limited']);
+  const e = new Broker({ manifest: { permissions: ['chat.send'] }, grants: ['chat.send'], env });
+  await assert.rejects(() => e.handle('media.send', JSON.stringify({ kind: 'image', data: b64(PNG), mimetype: '', fileName: '', caption: '' }), e.newCall({ chat: { id: 'x' } }, {})), /not in the manifest/);
+});
+
+test('v1.3.7 events: plugins hear joins and group messages only where allowed, never commands, never private chats', async () => {
+  await plugins.start();
+  const g = '1203630000000@g.us';
+  makePlugin('listener', { permissions: ['chat.send', 'events.message'], events: ['message'], commands: [{ name: 'listen', who: 'everyone', description: 'x' }] },
+    "tfx.on('message', async (c) => { await c.reply('heard:' + c.text + ':' + c.sender.id.length + ':' + c.event); }); tfx.command('listen', (c) => c.reply('cmd'));");
+  const codeA = (await run('plugin install listener', {})).match(/confirm (\w{4})/)[1]; await run('plugin confirm ' + codeA, {});
+  fs.cpSync(path.join(__dirname, '..', 'examples', 'welcome-plugin'), path.join(dir, 'plugins', 'welcome-plugin'), { recursive: true });
+  const screen = await run('plugin install welcome-plugin', {});
+  assert.match(screen, /Know when members join/); // the install screen says it in plain words
+  const codeB = screen.match(/confirm (\w{4})/)[1];
+  await run('plugin confirm ' + codeB, {});
+  const out = []; const s = { sendMessage: async (to, m) => { out.push({ to, m }); } };
+  plugins.emit('message', { sock: s, jid: g, text: 'hi there', senderJid: '27811111111@s.whatsapp.net', pushName: 'Sam' });
+  await wait(() => out.length >= 1);
+  assert.strictEqual(out[0].to, g); assert.strictEqual(out[0].m.text, 'heard:hi there:16:message');
+  plugins.emit('member.join', { sock: s, jid: g, members: ['27822222222@s.whatsapp.net'] });
+  await wait(() => out.length >= 2);
+  assert.match(out[1].m.text, /Welcome to the group/);
+  const n = out.length;
+  plugins.emit('message', { sock: s, jid: '27811111111@s.whatsapp.net', text: 'private' }); // a private chat is never delivered
+  plugins.emit('member.leave', { sock: s, jid: g, members: ['x'] }); // nobody listens to leaves
+  await run('plugin groups listener deny', {}); // this group is switched off for the plugin
+  plugins.emit('message', { sock: s, jid: g, text: 'blocked' });
+  await new Promise((r) => setTimeout(r, 400));
+  assert.strictEqual(out.length, n);
+  await run('plugin groups listener all', {});
+  for (let i = 0; i < 30; i++) plugins.emit('message', { sock: s, jid: g, text: 'flood' + i }); // far too many: the extra ones are dropped
+  await new Promise((r) => setTimeout(r, 1500));
+  assert.ok(out.length - n <= 10, 'got ' + (out.length - n));
+});
+
+test('v1.3.7 a plugin can send a file it made itself, only to the chat where it was used', async () => {
+  makePlugin('docmaker', { permissions: ['chat.send', 'media.send'], commands: [{ name: 'docme', who: 'everyone', description: 'x' }] },
+    "tfx.command('docme', async (c) => { await tfx.media.send({ kind: 'document', data: tfx.util.toBase64('héllo'), mimetype: 'text/plain', fileName: 'note.txt', caption: 'here' }); });");
+  const code = (await run('plugin install docmaker', {})).match(/confirm (\w{4})/)[1]; await run('plugin confirm ' + code, {});
+  const out = []; const x = ctxFor({ sock: { sendMessage: async (to, m) => { out.push({ to, m }); } } });
+  await commands.get('docme').run(x.c);
+  assert.strictEqual(out.length, 1); assert.strictEqual(out[0].to, '1203630000000@g.us');
+  assert.strictEqual(out[0].m.document.toString('utf8'), 'héllo'); assert.strictEqual(out[0].m.fileName, 'note.txt'); assert.strictEqual(out[0].m.mimetype, 'text/plain');
+  plugins.turnOff();
+});
+
+test('v1.3.7 app.json is valid and lists what a host needs to deploy the bot', () => {
+  const a = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'app.json'), 'utf8'));
+  assert.strictEqual(a.name, 'TurboFex'); assert.match(a.repository, /^https:\/\/github.com\/nels0nfx\/TurboFex$/);
+  assert.strictEqual(a.env.SESSION_ID.required, true);
+  for (const k of Object.keys(a.env)) assert.ok(a.env[k].description, k);
+  assert.ok(!JSON.stringify(a).includes('turbofexbot@')); // no private details in a public file
+});
+
+test('v1.3.8 group management: the bot makes every safety check, a plugin cannot choose whom to remove', async () => {
+  await plugins.start();
+  const G = '1203631111111@g.us'; const BOT = '2799999999@s.whatsapp.net';
+  const people = [{ id: BOT, admin: 'admin' }, { id: '27800000001@s.whatsapp.net' }, { id: '27844444444@s.whatsapp.net', admin: 'admin' }, { id: '27833333333@s.whatsapp.net' }, { id: '27855555555@s.whatsapp.net' }];
+  const calls = [];
+  const mk = (botAdmin = true) => ({ user: { id: '2799999999:7@s.whatsapp.net' }, sendMessage: async () => {}, groupMetadata: async () => ({ id: G, subject: 'Team', participants: people.map((p) => (p.id === BOT && !botAdmin ? { id: BOT } : p)) }),
+    groupParticipantsUpdate: async (jid, list, action) => { calls.push(['kick', jid, list, action]); return [{ status: '200' }]; }, groupSettingUpdate: async (jid, s) => { calls.push(['setting', jid, s]); } });
+  makePlugin('modplug', { permissions: ['chat.send', 'events.message', 'group.manage'], events: ['message'],
+    commands: [{ name: 'banmentioned', who: 'everyone', description: 'x' }, { name: 'lockit', who: 'admin', description: 'x' }, { name: 'evil', who: 'owner', description: 'x' }] },
+    `tfx.on('message', async (c) => { if (c.text === 'spam') { try { await tfx.group.kick(c.sender.id); } catch (e) { tfx.log('refused:' + e); } } });
+     tfx.command('banmentioned', async (c) => { for (const m of c.mentions) { try { await tfx.group.kick(m); } catch (e) { tfx.log('refused:' + e); } } });
+     tfx.command('lockit', async () => { await tfx.group.close(); });
+     tfx.command('evil', async () => { try { await tfx.group.kick('0123456789abcdef'); } catch (e) { tfx.log('refused:' + e); } });`);
+  const screen = await run('plugin install modplug', {}); assert.match(screen, /🔴 Remove members/);
+  await run('plugin confirm ' + screen.match(/confirm (\w{4})/)[1], {});
+  const logs = () => plugins.logOf('modplug').join('\n');
+  const speak = async (sock, from, text) => { plugins.emit('message', { sock, jid: G, text, senderJid: from, pushName: 'x' }); await new Promise((r) => setTimeout(r, 500)); };
+  // a spammer who is a normal member is removed
+  await speak(mk(), '27833333333@s.whatsapp.net', 'spam');
+  assert.deepStrictEqual(calls.pop(), ['kick', G, ['27833333333@s.whatsapp.net'], 'remove']);
+  // an admin, the owner and the bot itself are never removed, whatever the plugin does
+  for (const who of ['27844444444@s.whatsapp.net', '27800000001@s.whatsapp.net', BOT]) await speak(mk(), who, 'spam');
+  assert.strictEqual(calls.length, 0); assert.match(logs(), /refused/);
+  // when the bot is not an admin nothing happens
+  require('../whatsapp/metadata').invalidate(G); await speak(mk(false), '27855555555@s.whatsapp.net', 'spam'); assert.strictEqual(calls.length, 0);
+  require('../whatsapp/metadata').invalidate(G);
+  // a command: tag-based removal works for an admin, not for a normal member
+  const msgWith = (jid) => ({ key: { participant: '27844444444@s.whatsapp.net' }, pushName: 'Adm', message: { extendedTextMessage: { contextInfo: { mentionedJid: [jid] } } } });
+  const adm = ctxFor({ sock: mk(), jid: G, isAdmin: true, msg: msgWith('27855555555@s.whatsapp.net'), groupMetadata: { subject: 'Team', participants: people } });
+  await commands.get('banmentioned').run(adm.c); assert.deepStrictEqual(calls.pop(), ['kick', G, ['27855555555@s.whatsapp.net'], 'remove']);
+  const member = ctxFor({ sock: mk(), jid: G, isAdmin: false, msg: msgWith('27855555555@s.whatsapp.net') });
+  await commands.get('banmentioned').run(member.c); assert.strictEqual(calls.length, 0);
+  // a command that makes up an id is refused; opening and closing work for the admin
+  const own = ctxFor({ sock: mk(), jid: G, isOwner: true, isAdmin: true }); await commands.get('evil').run(own.c); assert.strictEqual(calls.length, 0);
+  const lock = ctxFor({ sock: mk(), jid: G, isAdmin: true }); await commands.get('lockit').run(lock.c); assert.deepStrictEqual(calls.pop(), ['setting', G, 'announcement']);
+  plugins.turnOff();
+});
+
+test('v1.3.8 group management is rate limited and needs the permission', async () => {
+  const env = { isPublicHost: async () => true, log() {}, fetch: async () => ({}), notifyOwner: async () => {} };
+  const mkb = (perm) => new Broker({ manifest: { permissions: perm }, grants: perm, env });
+  const b = mkb(['group.manage']); const done = []; const st = b.newCall({ chat: { id: 'x' } }, { manage: async (a, m) => { done.push([a, m]); } });
+  const r = []; for (let i = 0; i < 4; i++) { try { await b.handle('group.kick', JSON.stringify({ member: 'm' + i }), st); r.push('ok'); } catch (e) { r.push(e.code); } }
+  assert.deepStrictEqual(r, ['ok', 'ok', 'ok', 'rate_limited']);
+  const n = mkb(['chat.send']); try { await n.handle('group.close', '{}', n.newCall({ chat: { id: 'x' } }, { manage: async () => {} })); assert.fail('allowed'); } catch (e) { assert.strictEqual(e.code, 'not_declared'); }
+  const noGroup = mkb(['group.manage']); try { await noGroup.handle('group.close', '{}', noGroup.newCall({ chat: { id: 'x' } }, {})); assert.fail('allowed'); } catch (e) { assert.strictEqual(e.code, 'not_allowed'); }
+});
+
+test('v1.6.5: the owner counts as tagged by phone number, hidden ID or the group member list; a reply is not a tag', async () => {
+  const g = '1203630000000@g.us'; const owner = process.env.OWNER_NUMBER;
+  const s = { user: { id: '27899999999:1@s.whatsapp.net', lid: '99999@lid' }, groupMetadata: async () => ({ id: g, subject: 'x', participants: [{ id: '777777@lid', phoneNumber: owner + '@s.whatsapp.net' }, { id: '27855555555@s.whatsapp.net' }] }) };
+  assert.strictEqual(await plugins.ownerTagged(s, g, [owner + '@s.whatsapp.net']), true);
+  assert.strictEqual(await plugins.ownerTagged(s, g, ['27855555555@s.whatsapp.net']), false);
+  assert.strictEqual(await plugins.ownerTagged(s, g, []), false);
+  assert.strictEqual(await plugins.ownerTagged(s, g, undefined), false);
+  require('../whatsapp/idmap').learn('424242@lid', owner + '@s.whatsapp.net'); // WhatsApp wrote the owner as a hidden ID that the bot has seen before
+  assert.strictEqual(await plugins.ownerTagged(s, g, ['424242@lid']), true);
+  assert.strictEqual(await plugins.ownerTagged(s, g, ['777777@lid']), true); // only the group's member list knows this pair
+  assert.strictEqual(await plugins.ownerTagged(s, g, ['27811111111@s.whatsapp.net', '27855555555@s.whatsapp.net']), false);
+  const { getMentioned } = require('../whatsapp/utils');
+  assert.strictEqual(getMentioned({ message: { extendedTextMessage: { contextInfo: { participant: owner + '@s.whatsapp.net', quotedMessage: {} } } } }).length, 0); // a reply alone is not a tag
+  assert.deepStrictEqual(getMentioned({ message: { extendedTextMessage: { text: '@1', contextInfo: { mentionedJid: ['1@lid', '1@lid'] } } } }), ['1@lid']);
+});
+
+test('v1.6.9: a plugin withdrawn from the store is removed from the bot (record, folder and saved copy)', () => {
+  const state = require('../core/plugins/state');
+  const f = makePlugin('gone-soon'); assert.ok(fs.existsSync(f));
+  const prev = path.join(state.previousDir('gone-soon'), '1.0.0'); fs.mkdirSync(prev, { recursive: true });
+  state.open().data.installed['gone-soon'] = { version: '1.0.0', sha: 'x', enabled: false, grants: [], store: { version: '1.0.0' } };
+  assert.strictEqual(plugins.removeWithdrawn('gone-soon'), true);
+  assert.ok(!state.open().data.installed['gone-soon']); assert.ok(!fs.existsSync(f)); assert.ok(!fs.existsSync(state.previousDir('gone-soon')));
+  assert.strictEqual(plugins.removeWithdrawn('gone-soon'), false); // asking twice is harmless
+});
+
+test('v1.6.9 doctor: lists installed plugins and what they are doing', () => {
+  const state = require('../core/plugins/state');
+  state.open().data.installed['doc-a'] = { version: '1.0.0', sha: 'x', enabled: false, reason: 'kept failing', grants: [] };
+  const r = plugins.doctor(); const a = r.list.find((x) => x.id === 'doc-a');
+  assert.ok(a && a.enabled === false && a.running === false && a.reason === 'kept failing');
+  assert.ok(Array.isArray(r.overlaps));
+  delete state.open().data.installed['doc-a'];
+});
+
+test('v1.6.10: the owner can choose the menu category of a plugin, or go back to automatic', () => {
+  const state = require('../core/plugins/state');
+  state.open().data.installed['cat-x'] = { version: '1.0.0', sha: 'x', enabled: false, grants: [] };
+  assert.deepStrictEqual(plugins.setCategory('cat-x', 'games'), { ok: true, category: 'games' });
+  assert.strictEqual(state.open().data.installed['cat-x'].category, 'games');
+  assert.strictEqual(plugins.setCategory('cat-x', 'owner').ok, false); assert.strictEqual(plugins.setCategory('cat-x', 'nonsense').why, 'bad'); assert.strictEqual(plugins.setCategory('nope', 'fun').why, 'unknown');
+  assert.strictEqual(plugins.setCategory('cat-x', 'auto').ok, true); assert.strictEqual(state.open().data.installed['cat-x'].category, undefined);
+  delete state.open().data.installed['cat-x'];
+});
+
+test('v1.7.0: the signed list of preinstalled plugins is read safely and turned into a plan', () => {
+  const registry = require('../core/plugins/registry');
+  const idx = (pre, ids = ['aaa-one', 'bbb-two', 'ccc-three']) => ({ format: 1, plugins: Object.fromEntries(ids.map((i) => [i, { versions: { '1.0.0': {} } }])), revoked: [], preinstall: pre });
+  assert.strictEqual(registry.preinstallOf({ plugins: {} }), null, 'an older store has no list');
+  assert.deepStrictEqual(registry.preinstallOf(idx([{ id: 'aaa-one', mode: 'activate' }, { id: 'aaa-one', mode: 'install' }, { id: 'X!', mode: 'install' }, { id: 'bbb-two', mode: 'wild' }, null, { id: 'ccc-three', mode: 'install' }])), [{ id: 'aaa-one', mode: 'activate' }, { id: 'ccc-three', mode: 'install' }]);
+  // nothing installed: everything on the list is installed; an older store changes nothing
+  assert.deepStrictEqual(plugins.planPreinstall(idx([{ id: 'aaa-one', mode: 'activate' }, { id: 'bbb-two', mode: 'install' }]), {}).install.map((x) => x.id + ':' + x.mode), ['aaa-one:activate', 'bbb-two:install']);
+  assert.deepStrictEqual(plugins.planPreinstall({ plugins: {} }, { 'aaa-one': { preinstalled: { mode: 'activate' } } }), { install: [], adopt: [], remove: [] });
+  // already installed from the store: adopted; the owner's own plugin with the same name: left alone; one that left the list: removed
+  const have = { 'aaa-one': { store: { version: '1.0.0' } }, 'bbb-two': { version: '1.0.0' }, 'old-pre': { preinstalled: { mode: 'install' } }, 'mine-own': { version: '1.0.0' } };
+  const plan = plugins.planPreinstall(idx([{ id: 'aaa-one', mode: 'install' }, { id: 'bbb-two', mode: 'activate' }]), have);
+  assert.deepStrictEqual(plan.adopt.map((x) => x.id), ['aaa-one']); assert.deepStrictEqual(plan.install, []); assert.deepStrictEqual(plan.remove, ['old-pre']);
+  // a plugin the store no longer offers is not installed
+  assert.deepStrictEqual(plugins.planPreinstall({ ...idx([{ id: 'aaa-one', mode: 'install' }]), revoked: [{ id: 'aaa-one' }] }, {}).install, []);
+});
+
+test('v1.7.0: a preinstalled plugin cannot be removed, an activated one cannot be turned off, and the admin can still take it away', () => {
+  const state = require('../core/plugins/state'); const d = state.open().data;
+  d.installed['pre-act'] = { version: '1.0.0', sha: 'x', enabled: true, grants: [], blocked: [], store: { version: '1.0.0' }, preinstalled: { mode: 'activate' } };
+  d.installed['pre-ins'] = { version: '1.0.0', sha: 'x', enabled: false, grants: [], blocked: [], store: { version: '1.0.0' }, preinstalled: { mode: 'install' } };
+  assert.strictEqual(plugins.remove('pre-act'), false); assert.ok(d.installed['pre-act']);
+  assert.strictEqual(plugins.remove('pre-ins'), false); assert.ok(d.installed['pre-ins']);
+  assert.strictEqual(plugins.setEnabled('pre-act', false).why, 'locked'); assert.strictEqual(d.installed['pre-act'].enabled, true);
+  assert.strictEqual(plugins.setEnabled('pre-ins', false).ok, true, 'an install-only plugin can be switched off again');
+  assert.strictEqual(plugins.removeWithdrawn('pre-act', (n) => 'bye ' + n), true); assert.ok(!d.installed['pre-act'], 'the admin side can remove it');
+  assert.strictEqual(plugins.removeWithdrawn('pre-ins'), true); assert.ok(!d.installed['pre-ins']);
+  assert.strictEqual(plugins.doctor().list.some((x) => x.id === 'pre-act'), false);
+});

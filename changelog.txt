@@ -1,0 +1,956 @@
+TurboFex v1.8.0 - the right song, faster groups, smarter switches, status likes straight to the poster
+CHANGED IN 1.8.0
+- FIXED `play` sending another song than the one asked for. Four causes: (1) a result only had to contain HALF of the asked words, so for a two word name one matching word was enough; (2) when NOTHING matched, the best of the bad results was sent anyway; (3) the second try and the Piped backup also used those weak results; (4) songs in Hindi, Korean, Thai, Greek and other scripts had no words at all, so every result "matched". Now a result must have all the asked words (up to 3 words, three quarters of them after that), small typing mistakes are forgiven (`donw`, `rihana`), the asked words in the right order count extra, and every script works. If nothing matches, NOTHING is downloaded: the bot says so and shows the closest results with their links, so the right one can be sent as a link (`.play <link>` is still downloaded exactly as given).
+- FASTER in groups. The bot's own work for a message in a group was about 2.3 ms, 8 times more than in a private chat (0.3 ms), and three quarters of it was the date helper building nine new date formatters for every message. They are now made once and reused (the answers are identical: 329 checks in 7 time zones). A group message now costs about 0.2 ms, the same as a private chat. (The rest of the time you wait for a reply is WhatsApp and the network, which the bot cannot change.)
+- SMARTER switches. Repeating an on/off command now says so instead of "done": `.autolikestatus on` twice answers "Auto like status is already ON. Nothing was changed." This works for about 60 commands (the status, automation, group protection, welcome, goodbye, antilink, antispam, autotag, linkpreview, maintenance and more) and for mode words (`antilink delete`, `antispam warn`, `autoviewonce all`). It only says "already" when the command really saved the same settings as before, so a real change (on, off, on) is always reported as done. `.enable <command>` and `.disable <command>` and `.weeklyrecap` say it too. Warnings and refusals are shown as they are.
+- CHANGED status likes: besides the list that was used before, the like is now ALSO sent straight to the poster, every time (before, only as a last resort when every list was refused). That is how WhatsApp's own apps send a like, and it is the kind of message your own phone understands as "I liked this", so the heart should light up there, and WhatsApp may accept it where the list is not answered. The same like twice is harmless (the second replaces the first). `.statusinfo` shows the route as "status (... list) + direct". Not verified against WhatsApp's servers.
+
+TurboFex v1.7.9 - faster downloads, and a like WhatsApp did not answer is tried again
+CHANGED IN 1.7.9
+- FASTER downloads (dl, play, ig, tiktok and the others). Four slow spots were found in the download engine:
+  1) The way that worked last time (which YouTube client the downloader uses) was only kept in memory, so the first download after EVERY restart tried the slow ways one by one. It is now saved (`data/ytdlp-state.json`) and used first after a restart. In a test with a downloader that needs 0.3 s to start and only works on its last way, the first download after a restart went from about 2.7 s to 0.6 s.
+  2) When the first try failed, the slow self-update of the downloader ran BEFORE the quick alternatives were tried, and again after every restart. The update now runs only after every way has failed (then all ways are tried once more), and the 6-hour limit between updates also holds across restarts.
+  3) `play <song name>` started the downloader program twice (once to search, once to download), and each start takes seconds. The YouTube search page (one web request) is now used first and the downloader's own search is the backup.
+  4) A few seconds after the bot connects, the downloader is started once in the background, so the first real download does not have to find it and read it from the disk.
+- FIXED: a status like that WhatsApp did NOT answer at all was taken as done, and no other way was tried, although that is exactly what a like that WhatsApp silently drops looks like. The bot now tries one more way (at most 2 tries); if WhatsApp still gives no answer, the like counts as sent but unconfirmed, as before. The same like sent twice is harmless.
+
+TurboFex v1.7.8 - a new menu header
+CHANGED IN 1.7.8
+- CHANGED: the menu header has a new look: a framed box with the bot name in the top bar, then one line per detail, each starting with ◈ (Owner, User, Prefix, Mode, Commands, Version, Speed, Uptime; Platform, Usage and RAM for the owner only), and a closing line. The details are our own words and data. The title and subtitle you set with `setmenu` are still used. The menu stays ONE text message: no sticker, picture or video. The category boxes below the header are unchanged.
+
+TurboFex v1.7.7 - ytcookies works
+CHANGED IN 1.7.7
+- FIXED: `.ytcookies` never saved a cookies file. The bot only looked for pictures, videos, stickers and audio, so it never found a text file, and a file sent with `.ytcookies` as its caption was not read as a command at all. Both ways now work: send the cookies.txt with `.ytcookies` as its caption, or reply to the file with `.ytcookies`. Captions of files (documents) are now read like the captions of pictures and videos, so a file sent with a command as its caption runs that command.
+
+TurboFex v1.7.6 - auto tag, and a faster first reply in groups
+CHANGED IN 1.7.6
+- NEW: `.autotag on` / `.autotag off` (owner only). While it is on for a group, writing there tags everybody in the group silently. The bot does NOT send a second message: it edits YOUR OWN message and adds the tag (same text, no names listed, no empty bubble). WhatsApp only lets an account edit its own messages, so messages of other people are not changed, and pictures or stickers are left alone (a text or a reply is edited, a reply keeps the message it answers).
+- In a private chat, `.autotag on` switches it on for ALL groups, also groups you join later; `.autotag off` switches it off everywhere. For one group use its number from `.gjids`, its id or part of its name: `.autotag on 3`, `.autotag off 3` (with "all" on, this leaves one group out). `.autotag` shows what is on. Inside a group the command works on that group only. It is OFF until switched on.
+- FASTER: the group list is now loaded 1 second after connecting (it was 3) and tried again 5, 15 and 45 seconds later if WhatsApp does not answer. Before, one failure meant every group was loaded one by one by the first person to write in it, which made the first reply in a group slow (the time inside the bot before a command starts, shown in the first `.ping`).
+
+TurboFex v1.7.4 - stability fixes
+CHANGED IN 1.7.4
+- FIXED: the bot could stay offline for good. When a reconnect failed to even START twice in a row (a disk error, too many open files), nothing tried again. It now keeps trying, waiting longer each time (5 s up to 1 minute) (`core/backoff.js`).
+- FIXED: one stuck command could block all others of its kind until a restart. A "medium" or "heavy" command (downloads, media work) now gives up its slot after 10 minutes at most and counts as failed, so the next command is not refused as "busy". A command can set its own limit with `maxMs`.
+- FIXED: a fatal error that nobody caught was only logged, so the bot could keep running half broken. One is still survived; when it happens 3 times in 10 minutes the bot restarts cleanly, with everything saved first and the login kept (`core/crashguard.js`).
+- FIXED: in a chat that sends messages faster than the bot can handle them, the waiting line grew without end (memory, and later and later answers). A chat's line now keeps the newest 100 waiting messages and skips the oldest, in order (`core/chatqueue.js`). Commands were never in this line and are not affected.
+
+TurboFex v1.7.3 - status likes work for every poster
+CHANGED IN 1.7.3
+- FIXED: likes on statuses of people who have read receipts OFF were refused when the bot account had read receipts ON. The bot now also registers each view privately (the receipt WhatsApp itself sends), and when a like is refused it registers the view again and tries once more before giving up.
+- FIXED: one refused status could switch the normal like route off for ten minutes for everybody. The route is now only skipped after three statuses in a row are refused on every list, and one success puts it right again.
+
+TurboFex v1.7.2 - you can see that a like went through
+CHANGED IN 1.7.2
+- NEW: `.statusinfo` now lists the last likes: ✅ confirmed by WhatsApp, ❔ sent but WhatsApp gave no answer, or ❌ failed, with who and when. Before, the bot kept this record but never showed it, so with read receipts off on the bot account you saw nothing at all.
+- CHANGED: `.statusinfo` has a new line, "Likes without an answer", and "Liked" no longer hides them.
+- FIXED: when a like timed out, the bot kept waiting for WhatsApp's answer in the background and never stopped. It now cleans up every time.
+
+TurboFex v1.7.1 - a smarter, better coordinated bot
+CHANGED IN 1.7.1
+- NEW: mistyped commands are understood. If someone types a command that does not exist but is close to a real one (".mneu", ".weathr", a plugin command), the bot says "Did you mean .menu?". The owner answers `yes` or `no` (no prefix) and `yes` runs the corrected command, keeping its reply and text. Other people only see the suggestion. It only ever suggests commands that person may use, stays silent in private mode and when nothing is close, and answers at most once every few seconds in a chat. `.autocorrect off` / `on` (owner) switches it.
+- NEW: the bot remembers your last command in a chat for about 10 minutes. `.again` (or `.redo`) runs it again with all the normal checks. Commands that change things (owner and admin commands) are not repeated.
+- NEW: failures are told apart. Network, timeout and busy-service problems get a calm "that service is not answering right now" message, and lookup commands are tried once more, quietly, before giving up. Real bugs still show the usual message (with the reason for the owner).
+- NEW: a command that fails 5 times in 10 minutes rests for 3 minutes, with a short notice for the first person and ONE message to the owner (with the last reason). It starts again by itself, the owner can still use it, and menu, ping, status, update and plugin are never paused. Plugin commands are covered too.
+- NEW: `.status` now shows what needs attention in one place: resting or failing commands and plugins that need a look.
+- CHANGED: the public README command count is now 322.
+
+TurboFex v1.7.0 - plugins that come with the bot
+CHANGED IN 1.7.0
+- NEW: TurboFex can put a store plugin on EVERY bot by itself. The choice is made in the TurboFex admin dashboard and signed with the store, so a bot only follows it when it is genuine. New bots get the plugin as soon as they start, and bots that already run get it within about 10 minutes of the next check (or after an update). It is installed with the permissions it asks for, without a confirm step, and the owner gets a short message.
+- NEW: a plugin that comes with the bot is either installed AND on, or installed and left for the owner to switch on with `.plugin enable <name>`. Owners cannot remove these plugins, and an "installed and on" plugin cannot be switched off. `.plugin list` and `.plugin info` show "comes with the bot". They update by themselves.
+- NEW: when TurboFex stops sending a plugin, every bot that has it removes it (and the plugin is no longer added to new bots). If it is still in the store, owners can install it themselves.
+- CHANGED: plugins are always on now, so `.plugin on` and `.plugin off` are gone (they just explain this). Use `.plugin enable <name>` and `.plugin disable <name>` for a single plugin you added yourself. Bots that had plugins switched off start them again.
+- CHANGED: README, `.plugin` help and the plugin pages no longer say plugins are off by default.
+
+TurboFex v1.6.11 - sample plugins cleaned out
+CHANGED IN 1.6.11
+- CHANGED: the sample plugins that came with the bot (Hello, Welcome, Lock, Owner tag) are no longer listed or offered by `.plugin list` and `.plugin install`. Plugins now come only from the store or from your own `data/plugins/` folder.
+- FIXED: the old Hello test plugin is removed by itself from every bot that still has it (a copy that came from the store is left alone). Other plugins you installed are never touched.
+
+TurboFex v1.6.10 - plugins land in the right menu category
+CHANGED IN 1.6.10
+- FIXED: plugins without a `category` in their manifest were mostly put under TOOLS. The bot now guesses from the plugin's name and commands first, then its description, then the permissions it asks for (tag or reply plugins go to AUTOREPLY, group tools to GROUP, games to GAMES, and so on).
+- NEW: `.plugin category <name> <category>` puts a plugin's commands in the menu category you choose (`auto` gives the choice back to the bot). It changes the menu at once and is kept when the plugin updates. `.plugin info <name>` now shows the menu category.
+
+TurboFex v1.6.9 - withdrawn plugins disappear fast, and a plugin doctor
+CHANGED IN 1.6.9
+- CHANGED: when a plugin is withdrawn from the store, every bot that has it now REMOVES it (commands, files and the saved old copy) instead of only switching it off, and tells the owner. The bot asks the store every 10 minutes, and also when a plugin is used (at most every 5 minutes), so it is usually gone within minutes instead of hours. A bot that is offline removes it the next time it is online. Plugins added by hand or by a test code are never touched.
+- NEW: `.plugin doctor` shows every installed plugin with a plain verdict (fine, off and why, problems lately) and warns when two plugins react to the same thing, for example every group message. It changes nothing.
+
+TurboFex v1.6.8 - tidier reply when there are no plugin commands
+CHANGED IN 1.6.8
+- CHANGED: `.menu plugins` with no plugin commands now answers in the usual TurboFex style (bold title, ▸ line).
+
+TurboFex v1.6.7 - a plugin command is listed once
+CHANGED IN 1.6.7
+- FIXED: a plugin could appear in more than one menu category. Turning on a plugin that was already on registered its commands a second time. Now a plugin is always registered fresh (never twice), and the menu lists any command only once, in one category.
+
+TurboFex v1.6.6 - plugin commands live in the normal menu categories, marked 〔P〕
+CHANGED IN 1.6.6
+- CHANGED: the separate PLUGINS menu category is gone. A plugin's commands now appear inside the category they belong to (GROUP, TOOLS, AUTOREPLY, FUN ...), in the same A-Z order, with the same look, permissions and behaviour as before.
+- NEW: every plugin command carries the marker 〔P〕 beside its name in `.menu`, `.menu <category>`, `.menu <command>`, `.list` and the bot's own help answers. Native commands never have it. The menu is built fresh every time, so the marker appears and disappears by itself when a plugin is installed, updated, enabled, disabled or removed. A short line under the menu explains the marker, only while a plugin command is active.
+- NEW: `.menu plugins` shows every plugin command in one list (with the category each one sits in).
+- NEW for plugin authors: an optional `"category"` line in turbofex-plugin.json (general, group, autoreply, status, watch, tools, fun, games, ai, budget, download, effect, media, audio, video, editor, security, lookup, other). Without it the bot picks one from what the plugin does (group tools -> GROUP, files -> MEDIA, only listening -> AUTOREPLY, otherwise TOOLS). `owner` is not allowed. `.plugin` stays only for managing plugins.
+
+TurboFex v1.6.5 - plugins now know when the owner is tagged
+CHANGED IN 1.6.5
+- FIX: a plugin that answers when someone tags the owner in a group never worked. The message event did not say who was tagged, and WhatsApp often writes the owner as a hidden ID instead of the phone number.
+- NEW for plugins (nothing changes for plugins that do not use it): in a `message` event, `c.mentionsOwner` is `true` when the owner was tagged (the bot compares the phone number, the hidden ID and the group's member list), and `c.mentions` now lists the people tagged in that message (private codes, they work with `c.mention`). A reply to someone's message is not a tag. Needs only the same `events.message` permission as before.
+- NEW: example plugin `examples/owner-tag-plugin` (answers with a message the owner chose when somebody tags the owner).
+
+TurboFex v1.6.4 - test codes over store plugins, store read from the site
+CHANGED IN 1.6.2
+- FIX: `.plugin test <code>` said "A different plugin with that name is already in your plugins folder" when the same plugin was already installed from the store. A private test now replaces a store copy or an older test copy (you still confirm it first, and the store version is saved so you can go back). The real store install can also replace a test copy. Only a folder you copied by hand is still protected, and the message now says how to fix it.
+- NEW: the store is now read from the pair site first (it signs the store itself) and from GitHub if the site cannot be reached or its signature is not trusted. Same safety checks for both.
+- NEW (your phone, once): `node tools/registry.js serverkey` makes a separate signing key for the pair site. After that, approving or withdrawing a plugin on the site needs nothing on your phone.
+- NEW: the pair site's own signing key is now trusted (second spare key in registry-key.json). Use together with pair site v3.0.1.
+
+TurboFex v1.6.1 - Plugin API 1.1: many more abilities for plugin developers
+CHANGED IN 1.6.1
+- NEW for plugins (the owner approves each one when installing; nothing changes for plugins that do not use them):
+  - Reply as a quote: `ctx.quote(text)` (needs chat.send). Mention people: `ctx.mention('Hello {1}', [id])` (chat.send). Typing / recording signal: `ctx.typing('typing'|'recording'|'paused')`. Polls: `ctx.poll(question, [options], multi)` (all use chat.send and the same message limits; polls 6 an hour).
+  - What a command was used on: `ctx.quoted` ({text, sender, media} of the message it replies to) and `ctx.hasMedia`.
+  - `user.dm`: `ctx.dm(text)` sends a private message to the person who used a command (one per call, 10 an hour, never anyone else).
+  - `group.members`: `tfx.group.members()` gives [{id, admin}] with the plugin's own ids (no phone numbers); the ids work with mention, kick, promote and demote.
+  - `media.read`: `tfx.media.download('message'|'quoted'|'any')` gives the picture, sticker, audio or short video a command was used on (up to 2 MB, 6 a minute).
+  - `tfx.net.post(url, body, type)` (needs network, listed domains only, JSON / form / plain text up to 64 KB, 10 a minute).
+  - `tfx.storage.chat.get/set/delete`: notes kept per group, separate from the plugin's other notes (same storage permission and size limit).
+  - `tfx.group.describe(text)` (group.manage) and `tfx.group.inviteLink()` (new permission group.invite): only through a command used by an admin, where the bot is an admin.
+  - `tfx.util.hash(text, 'sha256'|'sha1'|'md5')` and `tfx.util.fromBase64(text)`: no permission needed.
+  - New events (need events.members): `member.promote` and `member.demote`.
+- FIX: updating from an older bot said "tools/build-playground.js needs ./core/plugins/broker, which is not in the update". The build tool's file path was corrected, and a new test runs the updater's own check on the whole bot.
+- The plugin test tool (`.plugin test`, tools/plugin-test.js) pretends all of these, so developers can try them before submitting.
+
+TurboFex v1.6.0 - collections and bundles
+CHANGED IN 1.6.0
+- NEW: COLLECTIONS. The store owner can group 2 to 8 plugins into a ready-made set (for example a starter set). As the bot owner: `.plugin collections` lists the sets, `.plugin collection <name>` shows what is inside, and `.plugin bundle <name>` prepares the whole set. You still approve every plugin on its own and see what it asks for, so nothing is installed without your OK; plugins you already have are skipped. Collections are signed together with the store list, so they cannot be changed on the way to your bot.
+- For the store owner: `node tools/registry.js pull` now also collects the collections made in the admin dashboard and signs them (needs pair site v2.56.0).
+
+TurboFex v1.5.13 - tool that builds the site's Playground
+CHANGED IN 1.5.13
+- NEW (for the website, not the running bot): `node tools/build-playground.js <folder>` builds the two browser files of the pair site's Plugin Playground from the bot's own sandbox and broker code, so the Playground behaves like the bot. Run it again and copy the files to the site whenever core/plugins/worker.js or broker.js change. Use together with pair site v2.54.0, which already contains the files built from this version.
+
+TurboFex v1.5.12 - registry tool: plugin screenshots
+CHANGED IN 1.5.12
+- NEW (your phone only): `node tools/registry.js pull` (and `add`) now carry up to 3 screenshots of a plugin (PNG, 200 to 2000 pixels each side, up to 200 KB) into the store and into the signed list. A screenshot that does not match what the site announced is skipped like any other bad file. Nothing changes for the running bot. Use together with pair site v2.53.0.
+
+TurboFex v1.5.11 - registry tool: plugin logos
+CHANGED IN 1.5.11
+- NEW (your phone only): `node tools/registry.js pull` (and `add`) now carry a plugin's logo (icon.png: square PNG, 64 to 512 pixels, up to 32 KB) into the store and into the signed list, so the Plugins page can show it. A logo that does not match what the site announced is skipped like any other bad file. Nothing changes for the running bot. Use together with pair site v2.52.0.
+
+TurboFex v1.5.10 - plugins: media.convert
+CHANGED IN 1.5.10
+- NEW (for plugin makers): the new permission "media.convert" lets a plugin ask the bot to turn a picture into a sticker and audio into a small MP3 (tfx.media.toSticker / tfx.media.toAudio), then send it (media.send now also accepts kind "audio"). The bot does the work with strict limits: 1 MB in, 2 per command, 6 per minute, 4 seconds. The owner sees it as a yellow permission when installing.
+- Nothing changes for installed plugins. Use together with pair site v2.51.0.
+
+TurboFex v1.5.9 - plugins: private test install
+CHANGED IN 1.5.9
+- NEW (bot owner only): `.plugin test <code>` installs an unfinished plugin that a developer wants you to try. The developer gets the code (like TFX-ABCD2345, works once, one hour) on the pair site. The plugin was NOT reviewed or signed by the store, so you see a clear warning and the normal permission screen, and you confirm with `.plugin confirm <code>`. It is never updated or counted as a store plugin, and runs in the same sandbox. Only use it if you know and trust the developer.
+- Use together with pair site v2.50.0.
+
+TurboFex v1.5.8 - plugin makers: a test tool
+CHANGED IN 1.5.8
+- NEW (for plugin makers, runs on a computer, not in the bot): `node tools/plugin-test.js <plugin-folder>` checks the plugin files with the bot's own rules, then runs every command, event and schedule in the same sandbox with a pretend chat and shows what the bot would say, react with, send or do. Options: --command "name words", --event message --text "hi", --schedule id, --as owner|admin|member, --live-network. Nothing is sent anywhere.
+- Nothing changes for the running bot. Use together with pair site v2.49.0 (plugin guide section 5d).
+
+TurboFex v1.5.7 - registry tool: back up the plugin store from your phone
+CHANGED IN 1.5.7
+- NEW (your phone only): `node tools/registry.js sitebackup <file>` saves everything the pair site's plugin store keeps (developers, submissions with code, ratings, reports) into one file, using the same TFX_SITE_TOKEN as `pull`. Needs pair site v2.46.0. Nothing changes for the running bot.
+
+TurboFex v1.5.6 - plugins: rate a store plugin from the bot
+CHANGED IN 1.5.6
+- NEW (bot owner only): `.plugin rate <name> <1-5>` gives a plugin you installed from the store 1 to 5 stars. It needs `.plugin stats on` and the first statistics report already sent. The store page shows the average as "rated by bot owners". Use together with pair site v2.44.0.
+
+TurboFex v1.5.5 - plugin store: your spare signing key is now trusted
+CHANGED IN 1.5.5
+- NEW (safety): the public part of your spare signing key is now built into the bot. If the main key is ever lost, signing the store with the spare keeps every bot that has this version working. Nothing changes for owners today.
+
+TurboFex v1.5.4 - plugin store: spare signing key
+CHANGED IN 1.5.4
+- NEW (safety): the bot can now trust a SPARE signing key next to the main one (listed as backupKeys in core/plugins/registry-key.json). If the main key is ever lost, you sign the store with the spare and bots keep accepting it without an update. No spare is set yet, so nothing changes today.
+- NEW (your phone only): `node tools/registry.js publickey` shows the public key in use. New file KEY_ROTATION.md explains the steps in plain words.
+
+TurboFex v1.5.3 - plugins: optional anonymous statistics (off by default)
+CHANGED IN 1.5.3
+- NEW (bot owner only): `.plugin stats on` lets your bot send, once a day, a random bot number plus for each store plugin its name, version, whether it is on and how many times it failed. It sends NO messages, phone numbers, group names or session. `.plugin stats` shows the state, `.plugin stats off` stops it and asks the site to delete what it holds. It is OFF until you switch it on.
+- Plugin makers then see how many bots use their plugin. Use together with pair site v2.41.0.
+
+TurboFex v1.5.2 - registry tool: README and CHANGELOG of plugins
+CHANGED IN 1.5.2
+- NEW (your phone only, `node tools/registry.js`): when a plugin comes with README.md and CHANGELOG.md, `pull` checks them against the fingerprints from the site, `add` keeps them with the plugin version, and the signed index lists their fingerprints. A document must be plain text up to 16 KB. A published version can never get, lose or change a document afterwards (same rule as its code). Plugins without documents work exactly as before.
+- Nothing changes for the running bot or for installed plugins. Use together with pair site v2.40.0.
+
+TurboFex v1.5.1 - plugins: promote, demote and rename
+CHANGED IN 1.5.1
+- NEW (for plugin makers): a plugin with the new permission "group.admins" can make a member an admin or take admin away, and a plugin with "group.manage" can now also rename the group. The bot keeps full control: this only works inside a command used by a group admin or you (never from something a plugin does on its own), only where the bot is an admin, on one person per call that was part of that command, 6 times an hour at most. You, the bot and your sudo users are never changed, the group creator is never demoted. The install screen shows "group.admins" as a red (high risk) permission.
+- Installed plugins are not affected. Use together with pair site v2.39.0.
+
+TurboFex v1.5.0 - plugins: options the owner can change
+CHANGED IN 1.5.0
+- NEW: a plugin can come with options (text, number, on/off or a choice from a list). You see them with `.plugin options <name>` and change one with `.plugin option <name> <option> <value>` (use the value `reset` to go back to the default). If the plugin marks an option "per group", using the command inside a group changes only that group. The plugin gets the values by itself, so plugin makers need no extra code, and no new permission is asked. Your choices are kept when the plugin updates, and `.plugin info` shows when a plugin has options.
+- Existing commands (including `.plugin set` for the plugin limits) are unchanged. Use together with pair site v2.38.0.
+
+TurboFex v1.4.9 - plugins: update modes, one-command rollback, and automatic return after failures
+CHANGED IN 1.4.9
+- NEW: update modes for plugins from the store. `.plugin updatemode <name> notify|automatic|manual`. Notify (the default): the bot tells you once about each new version and you decide. Automatic: the bot installs the new version by itself, but ONLY when it asks for exactly the same permissions and websites; anything that asks for more is never installed by itself, you are told and you must approve. Manual: the bot stays quiet (you can still use `.plugin updates`). The bot checks every 6 hours (with a random delay). Your choice is kept when the plugin updates.
+- NEW: `.plugin rollback <name>` goes back to the version before the last update (one version back). The old version was already approved by you, so nothing new is asked. A copy of it is kept in the new folder data/plugins-previous (never inside data/plugins). After a rollback that version is not installed automatically again.
+- NEW: if a new version keeps failing (the same rule as before: it gets switched off) within a day of its update, the bot goes back to the old version by itself and tells you, instead of just switching the plugin off.
+- FIXED: if you started an update (`.plugin update <name>`) but never confirmed it, the new files were already in the folder and after a restart the plugin was switched off ("its files changed"). Now the saved copy of the version you approved is put back automatically.
+- Plugins you copied in by hand are not affected (only store plugins have updates).
+
+TurboFex v1.4.8 - plugins: reactions, and delete/list for saved notes
+CHANGED IN 1.4.8
+- NEW (for plugin makers): a plugin that asks for the new permission "chat.react" can react with ONE emoji to the message that used its command (or the message its listener heard). It cannot pick another message, 1 per call, 10 per minute, one emoji only. When you install such a plugin, the screen lists it as a low-risk permission.
+- NEW (for plugin makers): plugins can now delete a saved note and list their saved note names (same "storage" permission as before, nothing new to approve).
+- Installed plugins are not affected. Use together with pair site v2.37.0 (so the site accepts "chat.react").
+
+TurboFex v1.4.7 - plugins: saved notes of a removed plugin are erased after 30 days
+CHANGED IN 1.4.7
+- NEW: when you remove a plugin (`.plugin remove <name>`), its saved notes are now kept for 30 days in case you install it again, then erased automatically (checked at start and every 6 hours while plugins are on). Installing it again within 30 days keeps the notes. Before this, the notes were kept forever. The `.plugin remove` reply says so.
+- Nothing else changes.
+
+TurboFex v1.4.6 - registry tool: withdrawals from the admin dashboard
+CHANGED IN 1.4.6
+- NEW: when you withdraw a published plugin in the pair site's admin dashboard (Plugins), `node tools/registry.js pull <registry-folder>` now also signs that withdrawal (it is written into the registry's signed `revoked` list). Push the registry folder, then run `node tools/registry.js published`. Bots switch the plugin off within a few hours (and when they start), as for any withdrawal. Running `pull` twice never writes a withdrawal twice. A withdrawal for a version that is not in your registry folder is skipped with a message.
+- Nothing changes in the bot itself.
+
+TurboFex v1.4.5 - registry tool: collect approved plugins from the pair site
+CHANGED IN 1.4.5
+- NEW: `node tools/registry.js pull <registry-folder>` downloads the plugins you approved in the pair site's admin dashboard (Developer Centre, pair site v2.28.0), checks each one AGAIN with the bot's own plugin check (fingerprints must match what the site announced, the plugin id must not belong to another developer, a published version never changes), adds and signs them. Plugins that fail are skipped with the reason; the others still go through.
+- NEW: `node tools/registry.js published` tells the pair site that those plugins are now in the registry (run it after you pushed the registry folder to GitHub).
+- It needs `TFX_SITE_TOKEN` (the same long secret as REGISTRY_PULL_TOKEN on the pair site). `TFX_SITE_URL` is optional. The signing key never leaves your phone. Nothing changes in the bot itself (menu, accounts and everything from 1.4.2 to 1.4.4 are untouched).
+
+TurboFex v1.4.4 - a menu header that looks like a header
+CHANGED IN 1.4.4
+- CHANGED: the menu header is now a banner of its own, drawn with a DOUBLE-line frame (`╔ ║ ╠ ╚`), so it no longer looks like the single-line category boxes (`┏ ┃ ┗`) or like other messages. The bot name sits in the top bar, and the lines are in three groups split by a thin line: who (owner name, your role), the bot (prefix, mode, commands, version) and live status (speed, uptime, and for the owner host, memory and RAM).
+- Unchanged: the category headings (`┏ ❏ NAME ❏`), the command lines and their symbols, the emoji before every header name (the bot name has none) and no emoji below the header.
+
+TurboFex v1.4.3 - the menu header shows the owner name from WhatsApp
+CHANGED IN 1.4.3
+- NEW: the menu header has a line `👑 Owner ▸ <name>` right under the title. The name is detected from WhatsApp, nothing to type: when the bot runs on the owner's own number it is the profile name of that account (and the name that comes with the owner's own messages); when the bot runs on another number it is the name the owner uses on WhatsApp (his profile name, or the name saved in the phone). The name of the bot number is never shown as the owner.
+- The last name found is saved, so the menu keeps showing it. Until WhatsApp has told the name the line is left out (never a phone number). The first message the owner sends from his phone (for example `.menu`) is enough for the bot to learn it.
+- NEW: `ownername` (owner only): shows the name, `ownername set <name>` chooses another one, `ownername auto` goes back to the name from WhatsApp. Each account has its own owner name.
+
+TurboFex v1.4.2 - add another session ID and the account is made by itself
+CHANGED IN 1.4.2
+- NEW: ACCOUNTS FROM SESSION IDs. Keep the first session ID in `session_id.txt` and add the next one on a NEW line below it (`SESSION_ID=TFX-...`, or `shop=TFX-...` to name the account). The bot creates the account by itself (folder `accounts/<name>/`, its own login, settings and `session_id.txt`) and starts it. No `accounts.json` is needed. The first line stays the main bot and keeps its old `data/` and `session/`.
+- NEW: the new account is started while the bot runs (the file is checked every few seconds); the accounts that already run are not restarted. A bot that ran as one account restarts once to become several.
+- Each account is remembered in `accounts/registry.json`: the same ID never makes a second account, and the account keeps running with its own login even when its line is removed from the file.
+- The main account only uses its own ID: a new ID in the file can never replace the main login. A file with only ONE new ID still replaces the login, as before.
+- Hosts without file access: the `SESSION_ID` variable may hold several IDs separated by commas. `accounts.json` / `ACCOUNTS` still work and are combined with this.
+- The `session_id.txt` template explains how to add another number.
+
+TurboFex v1.4.1 - the store's public key is in the bot
+CHANGED IN 1.4.1
+- The public key of the TurboFex plugin registry is now part of the bot, so the store (`plugin store`) can open as soon as the registry has its first signed plugin. Until then it shows an empty store. No other change.
+
+TurboFex v1.4.0 - the plugin store (first part): signed plugins from the TurboFex-Registry
+CHANGED IN 1.4.0
+- NEW: PLUGIN STORE inside the bot. `plugin store` lists approved plugins, `plugin store <name>` shows details and what a plugin asks for, `plugin install <name>` downloads and installs it (you still confirm with a code), `plugin updates` and `plugin update <name>` keep store plugins current. Your own plugin folders always come first.
+- SAFE BY DESIGN: the store is a public GitHub repository of plain files (TurboFex-Registry). Only plugins that the registry owner approved and SIGNED are accepted. The bot checks the signature of the index, the fingerprint of every downloaded file, and that the plugin asks for exactly the permissions the store announced. If anything does not match, nothing is installed. Published versions never change. Nothing about you or your bot is sent anywhere: the bot only downloads public files.
+- WITHDRAW: if the registry owner withdraws a plugin version for safety, bots switch it off within a few hours (and when the bot starts) and tell the owner; it cannot be turned on again. If the store cannot be reached, installed plugins keep running as they are.
+- NEW: `tools/registry.js`, the registry owner's tool (`keygen`, `backup`, `restore`, `init`, `add`, `revoke`, `verify`). It runs on the owner's own phone; the signing key never leaves it and has an encrypted backup. No GitHub Actions.
+- The store stays closed ("not open yet") until the registry's public key is placed in the bot (`core/plugins/registry-key.json`). Nothing changes for bots that never use it.
+- Not in this version: the marketplace pages on the pair site and the Developer Centre (next parts).
+
+TurboFex v1.3.8 - plugins can manage groups (carefully)
+CHANGED IN 1.3.8
+- NEW: GROUP MANAGEMENT FOR PLUGINS. With the permission `group.manage` a plugin can remove a member and open or close the group. The install screen shows it with a red mark (🔴) in plain words. Every safety check is made by the bot, never by the plugin:
+  - it only works in a group where the bot is an admin;
+  - the plugin cannot choose anybody: it can only act on the person who sent the message, the people tagged in the command, or the members of that join or leave event;
+  - the group owner (you), sudo users, group admins and the bot itself are never removed;
+  - a command made for everybody only works when an admin or the owner used it;
+  - at most 3 removals per call, 20 per hour; 6 open or close changes per hour;
+  - every removal and change is written in the plugin log (`plugin log <name>`).
+- NEW: commands of a plugin see the people tagged in the command (as hidden codes, never phone numbers).
+- NEW: example plugin `examples/lock-plugin` (`lockgroup`, `unlockgroup`, admins only).
+- Plugins stay off until `plugin on`; a plugin that asks for more is installed again with a new confirmation.
+
+TurboFex v1.3.7 - plugins can react to events and send pictures and files; app.json for template hosts
+CHANGED IN 1.3.7
+- NEW: PLUGIN EVENTS. A plugin can listen to group messages that are not commands (`message`), and to members joining (`member.join`) or leaving (`member.leave`). It needs the permission `events.message` or `events.members` and lists the events in its manifest. Only groups are delivered, never private chats, never commands, never the bot's own messages. A group the owner switched off for the plugin is skipped. A plugin gets at most 10 events per 10 seconds and at most 3 waiting; extra events are dropped for that plugin only, so the bot is never slowed down. Plugins get opaque ids, never phone numbers.
+- NEW: PICTURES AND FILES. With the permission `media.send` a plugin can send a picture, a sticker (WebP) or a document (PDF, PNG, JPEG, plain text, CSV, JSON) to the chat where it was used, up to 1 MB, 3 per call and 6 per minute. What a file really is is judged by its first bytes, never by its name. With `network` a plugin can download a picture (`tfx.net.fetchBytes`) from its listed domains, up to 1 MB. `tfx.util.toBase64(text)` helps a plugin make a text file.
+- The install screen explains the new permissions in plain words (🟡 for reading messages and joins).
+- The start-up safety check also tests an event.
+- NEW: `app.json` in the main folder, so hosts that create a deploy template from the repository (it asks for the session ID, the prefix and the time zone) can read it. Hosts with their own template format may need a different file.
+- NEW: example plugin `examples/welcome-plugin`. Not in this stage: group management by plugins (a later stage), a store.
+
+TurboFex v1.3.6 - the sample plugin is found without copying folders
+CHANGED IN 1.3.6
+- CHANGED: `plugin list` also shows the plugins that come with the bot (the `examples` folder), and `plugin install <name>` copies one into `data/plugins/` for you. Panels without a copy button need no extra steps. Plugins you add yourself still go in `data/plugins/`.
+
+TurboFex v1.3.5 - plugins (first stage): extra commands from other developers, running in a sealed sandbox
+CHANGED IN 1.3.5
+- NEW: PLUGINS. A plugin is a small folder (a `turbofex-plugin.json` and one JavaScript file) that adds commands. It runs in a sealed sandbox (QuickJS in WebAssembly, one worker thread per plugin): it cannot see files, passwords, the network, the bot's memory or other plugins. It can only ask the bot for a few things, and the bot checks each one against what the plugin declared and what the owner allowed.
+- OFF until the owner turns it on: `plugin on`. Nothing is loaded, created or changed while plugins are off. `plugin off` removes every plugin command at once. Owner only.
+- INSTALL: copy the plugin folder into `data/plugins/`, then `plugin list`, `plugin install <name>` (shows in plain words what it asks for and gives a 4-letter code), `plugin confirm <code>`. Also `plugin enable|disable|remove <name>`, `plugin info <name>`, `plugin log <name>`. If a plugin's files change after it was installed, it does not start until it is installed again.
+- PER GROUP: inside a group, `plugin groups <name> allow|deny|only|all`. A plugin that is not allowed in a group gets no answer there.
+- Permissions in this first stage: send messages in the chat where the command was used, its own saved notes, listed internet domains (https only, public addresses only), group name and member counts, a timer, a short note to the owner. Plugins never get real phone numbers or chat ids.
+- SAFETY: an endless loop, a memory bomb or a plugin that takes too long is stopped; a plugin that keeps failing or breaks the rules is switched off and the owner is told. A memory guard (default 96 MB per call) and the number of plugins awake at once (default 8) can be changed: `plugin set guard 96`, `plugin set max 8` (0 = no limit). Before plugins start, the bot runs a safety check on the server; if it fails, plugins stay off and the rest of the bot works as before.
+- Needs Node.js 22 or newer and the `quickjs-emscripten` package (installed as an optional package). On Node 20 or without the package, plugins stay off and TurboFex works as usual.
+- New menu category PLUGINS (shown only when plugins are installed). Not in this stage: events, pictures and files, group management by plugins, a store.
+
+TurboFex v1.3.4 - save a status by replying to it, sticker commands, copies to the chat where it happened
+CHANGED IN 1.3.4
+- NEW: SAVE A STATUS BY REPLYING TO IT. `statusreply on`: when the owner replies to somebody's status (from the phone), that status (picture, video, voice note or text) is saved and sent to the chat chosen with `statusjid` (default: your own chat). Nothing is sent or reacted in the chat where the reply was written. One status is saved once. It is OFF until switched on.
+- NEW: STICKER COMMANDS. Reply to a sticker with `setstickercmd <command>`; when the owner sends that sticker, the command runs. With `vv` it is SILENT: no answer and no reaction in the chat, the view-once goes to the view-once chat (`viewoncejid`), and a problem is told in the owner's own chat, never in the chat. Other commands run normally. `stickercmds` lists them, `delstickercmd` removes one. Only the owner can use them; at most 200 stickers.
+- NEW: `viewoncejid`, `deletejid` and `editjid` accept `chat`: the copy is sent to the chat where the message was sent, deleted or edited.
+- CHANGED: a reply written with a sticker, a voice note or a file now also counts as a reply to the message it quotes (needed for sticker commands).
+- CLEAN-UP: the safety copies in `data/legacy-removed/` are deleted after 60 days. The checks for unused files and lists that grow without end found nothing else to remove.
+
+TurboFex v1.3.3 - several accounts on one server, more hosts, Termux prefix fixed
+CHANGED IN 1.3.3
+- NEW: SEVERAL ACCOUNTS. Run more than one WhatsApp number from the same folder. Each account is its own bot process with its own login, settings and data, so they cannot overwrite each other. Turn it on with a file `accounts.json` (copy `accounts.example.json`) or the variable `ACCOUNTS=main,shop`. The account called `main` keeps the old places (`data/`, `session/`, `session_id.txt`) so a running bot is not linked again; every other account has `accounts/<name>/` with its own `session_id.txt`. Per account: `prefix`, `timezone`, `number`, `sessionId` (or the variable `SESSION_ID_<NAME>`), `enabled`. Log lines start with `[name]`. One account crashing does not stop the others. The first account updates the shared files, then all accounts restart together. Without `accounts.json` or `ACCOUNTS` nothing changes.
+- NEW: MORE HOSTS. A `Dockerfile`, `docker-compose.yml`, `.dockerignore`, a pm2 file (`ecosystem.config.js`), a systemd service (`hosting/turbofex.service`) and a `Procfile`. When the host gives a `PORT` (Render, Railway, Koyeb, Heroku and similar) the bot opens a tiny status page that only says it is running, so the host does not stop it. Without PORT nothing is opened.
+- NEW: README "Hosting guides" (Termux, VPS, Docker, panels, web-service hosts, Windows and Mac) and "Several accounts on the same server".
+- FIXED, Termux: Termux has its own variable called PREFIX (a folder path). The bot used it as the command symbol, so commands did not work on a fresh Termux install and `PREFIX=` in config.env was ignored. The bot now ignores a PREFIX that is not a short symbol. `BOT_PREFIX` also sets the symbol, and on Termux a `PREFIX=` line in config.env is used as BOT_PREFIX.
+- `accounts/` and `accounts.json` are never touched or published by the updater, the clean-up or the release check.
+
+TurboFex v1.3.2 - old Empire of Fex files are cleared on every start
+CHANGED IN 1.3.2
+- FIXED: some bots that updated from an old version still had the Empire of Fex commands after v1.2.1 removed them. Cause: the update only deletes old files if the bot that runs the update knows how, and very old bots never did. Now the bot itself clears them every time it starts: every file in `removed-files.txt` that is still on the disk, the whole old realm folder, and any bot file that still loads it (even if its name was never on the list).
+- SAFE: each file is first copied to `data/legacy-removed/`, so nothing is lost. `data/` (including the saved realm data), `session/`, `config.js`, `config.env`, `session_id.txt` and `node_modules/` are never touched. If a clean-up ever fails, the bot still starts.
+- The clean-up also runs when an update restarts the bot, not only on a full start.
+
+TurboFex v1.3.1 - the verification explains itself, reminds, and gives a last minute
+CHANGED IN 1.3.1
+- CHANGED: the message a new member gets now says what the verification is ("this group checks that every new member is a real person and not a spam bot"), what to do, how much time there is and that they are removed if it is not solved.
+- NEW: reminders on the way. The member is tagged halfway through the time the admins set, and again when 1 minute is left (for times of 4 minutes or more). Each reminder shows the sum again, so nobody has to scroll up.
+- NEW: when the time is up the member is tagged and gets 1 extra minute as a last chance. Only after that minute are they removed. A right answer in the extra minute still verifies them.
+- The reminders and the extra minute survive a restart: a member whose time ran out while the bot was offline is tagged and gets the extra minute when the bot is back.
+- `captcha`, `captcha time ...`: the texts now describe the reminders and the extra minute.
+
+TurboFex v1.3.0 - lighter on the disk and on memory
+CHANGED IN 1.3.0
+- FASTER: the list of already handled messages and statuses (`seen.json`, `seen-status.json`) was written to disk every second while it changed. A busy status feed on a slow disk could keep the bot waiting on that. The writes now space themselves out by how long the last save took (still every second on a normal disk, never more than every 15 seconds on a very slow one), and the list is always written in full when the bot stops or restarts.
+- FASTER: every save of a data file no longer checks the disk for the daily backup copy; it looks once a day per file.
+- FIXED: a small list in the admin guard (who was already told) could grow without end on a very busy bot. It is now capped.
+- CHECKED, nothing to change: the bot loads in about 0.1 s, a command lookup, group settings read and duplicate check each take under a microsecond, and every other in-memory list already had a cap.
+
+TurboFex v1.2.11 - session_id.txt comes inside the ZIP
+CHANGED IN 1.2.11
+- NEW: `session_id.txt` is now part of the hosting ZIP (blank, with the steps inside). People open it, paste the session ID after `SESSION_ID=`, save and start the bot. No need to start the bot first to get the file. The bot still makes it by itself if it is missing and never overwrites it.
+- CHANGED: the release check (`tools/release.private.sh`) now accepts the blank `session_id.txt` and STOPS the release if a real session ID is inside it. A self-updating bot never touches the file, so a pasted ID stays.
+
+TurboFex v1.2.10 - session_id.txt is always there
+CHANGED IN 1.2.10
+- NEW: the file `session_id.txt` is now created on EVERY start (before it only appeared once the bot had no login). Open it, paste the session ID after `SESSION_ID=`, save and restart. It has the steps inside and is never overwritten, so an ID you pasted stays.
+
+TurboFex v1.2.9 - the clean-up only touches settings commands
+CHANGED IN 1.2.9
+- FIXED: `delcmd` deleted everything, also the menu. Now it only cleans SETTINGS commands (and their confirmation): antilink, antiword, antispam, captcha, welcome, setwelcome, intro, setrules, setname, slowmode, autoread, mode, setprefix, delcmd, setapi and the like, but only when something is written after the command word. Written alone they show their panel, and a panel stays so you can read it. Switches (open, close, lock, unlock, lockdown) are always cleaned. The menu, ping, rules, rank, tagall, hidetag, stickers, downloads, AI answers, moderation (kick, warn...) and every game are never deleted.
+- NEW: `delcmd list` shows what is cleaned, `delcmd add <command>` cleans one more command, `delcmd remove <command>` leaves one alone.
+
+TurboFex v1.2.8 - delcmd: answers are deleted as soon as possible
+CHANGED IN 1.2.8
+- CHANGED: the bot's answers are now deleted as soon as possible: the default time is 1 second after they are sent (it was 60 seconds), and `delcmd time` accepts 1 second to 1 hour (it was 5 seconds). The command message goes 1 second after the answer. Use `delcmd time 30s` if you want people to have longer.
+- CHANGED: `delcmd own` and `delcmd all` also switch the deleting of the bot's answers ON every time (`delcmd reply off` keeps the answers).
+
+TurboFex v1.2.7 - group clean-up also deletes the bot's answers
+CHANGED IN 1.2.7
+- NEW: `delcmd` now cleans up both sides in groups: the command message AND the bot's answer to it, except for games (all of the games category, plus hotseat, storychain and pet) and polls, which are never touched. The command goes a moment after the answer; the answer stays for 60 seconds so people can read or save it. `delcmd own` (default) cleans the commands typed on the bot account (yours), `delcmd all` cleans every command (the bot must be a group admin to delete members' messages; its own answers can always be deleted), `delcmd off` stops it. `delcmd reply on / off` decides whether the bot's answers are deleted too (default ON), and `delcmd time 30s` (or 2m, 1h; 5 seconds to 1 hour) decides how long they stay. A command that failed is left in the chat. Private chats are not touched. A restart of the bot forgets answers that were still waiting to be deleted.
+
+TurboFex v1.2.6 - group games are never touched by the command cleanup
+CHANGED IN 1.2.6
+- CHANGED: `delcmd` leaves game commands alone (all commands of the games category, plus hotseat, storychain and pet). The lobby and the board answer the command message, and the quote would turn into "This message was deleted". The answers people type while a game runs are not commands, so they were never deleted.
+
+TurboFex v1.2.5 - phone notifications come back, commands cleaned up in groups
+CHANGED IN 1.2.5
+- FIXED: no message notifications on the iPhone since the bot was linked to the main number. WhatsApp sends no notifications to the phone while a linked device shows as "online", and the bot made itself "online" (the typing indicator sent "available" and never went offline again; "always online" pings every 25 seconds). Now the bot goes offline again right after a typing indicator, and says "offline" every time it connects, unless "alwaysonline" is ON.
+- NEW: in groups the bot now deletes the command message after it has answered, so you no longer delete them by hand. `delcmd own` (default) deletes the commands typed on the bot account (yours), `delcmd all` also deletes members' commands when the bot is a group admin, `delcmd off` stops it. A command that failed is left in the chat. Private chats are not touched.
+- NEW: `phonepush` (owner) shows which settings stop phone notifications (always online, auto read, auto typing) and `phonepush fix` turns off always online and auto read. "Auto read" marks every message as read, so the phone shows it as already read and gives no notification.
+
+TurboFex v1.2.4 - the repeated "Finished syncing with WhatsApp on Google Chrome (Ubuntu)" notice
+CHANGED IN 1.2.4
+- FIXED: the phone showed "Finished syncing with WhatsApp on Google Chrome (Ubuntu)" again and again on a number with many groups and contacts. Cause (found in the library's own bug reports, WhiskeySockets/Baileys issue 2591, and in the library code): every time a linked device asks the phone to send a message again ("placeholder resend"), WhatsApp shows that notice on the phone. The library does it by itself for every message it cannot decrypt, and a big account has many of those; a small number has few. The bot now tells the library that every such request was "already asked" (`core/placeholder.js`), so the automatic requests never reach the phone. The normal repair (asking the sender to send the message again) is untouched.
+- CHANGED: the view-once watcher is the only part that may still ask the phone for a hidden message, and only 4 times per hour (`PHONE_ASKS_PER_HOUR` changes it). The console says when the limit is used.
+
+TurboFex v1.2.3 - much faster on accounts with a huge contact list and huge groups
+CHANGED IN 1.2.3
+- FIXED: slow answers and freezes on big accounts. The bot looked people up by walking through its whole table of known people (and through the whole member list of a group) again and again: for every message, every reply to a private chat, every contact and every tagged person. With thousands of contacts that is millions of steps, and it happened all at once when WhatsApp handed over the contact list after every (re)connect, so the bot froze for seconds, missed WhatsApp's sign of life, reconnected, and froze again. Lookups are now instant (a reverse table in `idmap`, a lookup table for tags in `mentions`, a counter instead of counting all names in `names`).
+- CHANGED: the table of known people holds up to 50,000 pairs (was 5,000) and the table of names up to 40,000 (was 6,000), so a big contact list no longer pushes people out and back in all the time.
+- CHANGED: big saved files are written and checked less often. A file that takes 300 ms to save is written at most every 6 seconds, and the 10-second safety check of a big file waits 50 times as long as the check itself took. Saving on stop or restart is unchanged.
+
+TurboFex v1.2.2 - rules without the 1500 limit, a puzzle a 5 year old understands, your own captcha verified message, a chatbot that can tell chat from bot questions
+CHANGED IN 1.2.2
+- CHANGED: `setrules` no longer stops at 1500 characters. Only WhatsApp's own limit of about 60,000 characters in one message is left (a friendly message tells the admin when the text is longer than that).
+- CHANGED: the verification for new members is written for a small child: "Quick puzzle!", a friendly hello, a hint to count on the fingers, "type only the answer number", "Oops, not quite, try once more! You have 2 tries left", "Yay, you did it!" and a gentle sentence when somebody has to leave ("the puzzle was not solved in time").
+- NEW: `captcha message <text>` sets your own message for a new member who answered right (use @user where the member is tagged; the member is always tagged). `captcha message` shows the current one and `captcha message reset` brings the default back. `captcha` shows whether your own message is set.
+- FIXED: the chatbot (NelsonFx, `ai`, `chatbot`) answered normal conversation with bot commands. It looked for a command name in every message, so words like "play", "weather", "sticker" or "help" in an ordinary sentence made it list commands. Now a message is only treated as a question about the bot when it names the bot or its commands, asks what the bot can do, or asks how to do something and a command really fits. Everything else is normal chat: the AI gets no command list, and it is told to answer what the person said like a friend, never to suggest commands nobody asked for, to allow for typos such as "hot" for "bot", and to ask one short question when it cannot tell.
+
+TurboFex v1.2.1 - introduction waits for the verification, fewer reconnects, Empire of Fex removed
+CHANGED IN 1.2.1
+- CHANGED: with the verification (`captcha`) ON, the introduction of a new member is no longer sent at once. It is sent after the new member answers the sum correctly (right after the "is verified" message). A member who fails or does not answer in time is removed and gets no introduction. It also survives a restart of the bot. With the verification OFF nothing changes.
+- CHANGED: `captcha time` now takes seconds, minutes or hours: `captcha time 90`, `captcha time 90s`, `captcha time 5m`, `captcha time 1h` (30 seconds to 1 hour; it was 30 to 600 seconds). The time is shown as words ("5 minutes") in the question and in the settings. The default stays 120 seconds.
+- CHANGED: `intro` shows when the verification is ON, and `captcha on` says that the introduction follows the answer.
+- FIXED: the bot reconnected over and over on busy numbers (each reconnect makes the phone show "Finished syncing with WhatsApp on Google Chrome (Ubuntu)"). The bot sends WhatsApp a sign of life every 25 seconds and the library cut the connection after 30 seconds of silence, so a short freeze of a busy bot (many groups, big saves, pictures) was taken for a dead line. The limit is now 45 seconds (+5), the connect and query waits are 60 seconds, and the console now says when the bot froze for more than 5 seconds ("The bot was frozen for about N seconds"), so the real cause can be seen. The health check that reconnects a really dead line is unchanged.
+- REMOVED: the whole Empire of Fex: the realm game, Aurum, God and all of their commands: purse, daily, profile, bank, deposit, withdraw, give, wealth, shop, buy, realm, career, work, weekly, estates, collect, inventory, recipes, craft, sell, use, market, herald, trade, auction, government, election, stand, vote, appoint, dismiss, decree, salary, tax, treasury, law, referendum, impeach, jail, pardon, court, sue, season, festival, nobility, ennoble, disgrace, guild, dungeon, god and fish. The EMPIRE OF FEX menu category, the Aurum earned by chatting, the realm jobs that ran every minute, the Empire's own spam limit and the old coin clean-up are gone too. `blackjack` and `duel` stay as plain games (no more bets). The saved realm data in `data/` is not deleted; it is just no longer used.
+
+TurboFex v1.2.0 - introduction for new members
+CHANGED IN 1.2.0
+- NEW: `intro` (also `introduction`, `setintro`), for group admins. When someone joins, the bot sends the introduction text the admins saved, tags the new member, and attaches the example picture if there is one. With the welcome message ON, the welcome comes first and the introduction follows it; with welcome OFF the introduction is still sent. Commands: `intro on / off`, `intro set <text>` (several lines are kept; use @user, {group}, {count} and {time}), `intro image` (send or reply to a picture; `intro image off` removes it; a picture sent with `intro set ...` is saved together with the text), `intro time 24h` (5 minutes to 30 days, or `off`: the new member is told how long they have to introduce themselves), `intro test` (shows it to you), `intro reset`. Without any text the default introduction (name, age, where you are from, what brings you here) is used.
+
+TurboFex v1.1.9 - status likes: only real statuses, no mass-liking of old ones
+CHANGED IN 1.1.9
+- FIXED: only a real status (picture, video, voice note or text) is viewed, liked and counted. Reactions to a status, key updates and messages without content that can arrive on the status channel are ignored, so they can no longer push the counters up or get a like.
+- CHANGED: statuses older than 3 hours are still viewed but no longer liked (STATUS_LIKE_MAX_HOURS changes it). After a new link or a long break WhatsApp hands over the statuses of the last 24 hours at once; the bot used to like all of them within minutes, which is the kind of behaviour that gets an account limited. Fresh statuses are liked as before.
+
+TurboFex v1.1.8 - android identity by default, debug code removed
+CHANGED IN 1.1.8
+- CHANGED: the bot now links as an ANDROID device by default (BOT_BROWSER=android is the default; BOT_BROWSER=web gives the old browser identity). WhatsApp sends view-once files only to a device linked like the Android app. The identity is applied when the bot is LINKED, so a bot that was linked earlier stays as it is until it is linked again with a new pairing code or session id, and the pairing site must use the Android identity too.
+- REMOVED: all debugging code: `antigstatus debug`, `antigstatus report` and its counters, `autoviewonce debug`, the check reports, and the tracker of WhatsApp's answers to sent messages. The group status delete (wrapped revoke with the group-status marker, then the plain delete) and the notes about how the bot is linked stay.
+
+TurboFex v1.1.7 - android identity argument
+CHANGED IN 1.1.7
+- FIXED: with BOT_BROWSER=android the bot passed the word "Chrome" where the library expects the Android version number. It now passes a version number ('13', the library's own example), so the Android identity is built the way the library describes it. This only matters when the bot is linked with BOT_BROWSER=android; nothing changes for a bot that is already linked.
+
+TurboFex v1.1.6 - menu picture and video removed, why view-once arrives empty, group status
+CHANGED IN 1.1.6
+- REMOVED: the menu picture and video (setmenu image / video / media, the card, the delivery check for it). The menu is again ONE plain text message with the header and the commands together. `setmenu title / subtitle / reset` stay.
+- RESEARCHED, view-once: WhatsApp does not send view-once pictures, videos and voice notes to a device that is linked like WhatsApp Web (browser or desktop). They arrive as an EMPTY message: no content and no stub, exactly what the debug report showed. A device linked like the Android app does receive them (the Baileys android identity, PR 2201, is in the library version this bot uses). The identity is fixed when the bot is linked, so the only real fix is to link the bot again with BOT_BROWSER=android (and a pairing site that also uses the android identity). No code in the bot can open a message WhatsApp never sent. `autoviewonce` and `autoviewonce debug` now say how the bot is linked and explain this. Until then `vv` (reply to the view-once message) still opens it.
+- RESEARCHED, group status: the main Baileys library has no group-status support of its own, and other bots that delete group statuses also say they could not verify it on a live connection. The delete is now sent the same way the status itself is sent (wrapped, with the group-status stanza marker, as an admin delete), then as a plain delete. WhatsApp's answer is shown by `antigstatus`. Modes `warn` and `kick` do not depend on the delete and work whenever the status is recognised, which the earlier report showed it is.
+
+TurboFex v1.1.5 - menu delivery, group status answers, hidden files
+CHANGED IN 1.1.5
+- FIXED: the menu. The one-message picture card was not shown on your phone (WhatsApp accepted it but nothing appeared). The default is now: the TurboFex video (or your own picture or video) first, then the WHOLE menu, header and commands together, as ONE message under it. The card is still there with `setmenu media card`, and now WhatsApp's answer is checked: when it refuses the card, the normal menu is sent automatically. If the video cannot be sent, the picture is used, then plain text.
+- NEW: the bot now knows what WhatsApp answered to a message it sent (accepted or refused, with the error code). `antigstatus` shows "Last answer to a delete", and the debug report shows what WhatsApp said to the delete of a group status: accepted, refused (with its error code), or no answer. A refused wrapped revoke is followed by the plain delete.
+- NEW: `autoviewonce guess on/off`. A file that arrives empty and that your phone then sends back is kept. It is labelled *Hidden picture / video* ("it may have been a view-once") unless it really carries the view-once flag, then it is labelled *View-once*. With `guess off` only real view-once files are kept.
+- NEW: the `autoviewonce debug` report says when the file is the answer to our request to the phone, and says so when the phone did not answer at all.
+
+TurboFex v1.1.4 - group statuses are really deleted, menu back, reactions on time, view-once check
+CHANGED IN 1.1.4
+- FIXED: group statuses were recognised and a delete was sent, but WhatsApp ignores a normal delete for them. They are now deleted with a revoke wrapped the way the status was posted (as an admin delete). The plain delete is still sent after it as a backup.
+- FIXED: the menu was not arriving. The picture on the one-message menu was too big: together with the menu text it went over WhatsApp's size limit. The card picture is now small (320 px, 12 KB, also for your own picture), and a menu that takes more than 25 seconds falls back to the video or plain text.
+- FIXED: the command reaction. The hourglass now appears 500 ms after the message ARRIVED (before, the wait started only after the bot had checked roles and permissions, so it could be seconds late), and the check mark waits until the answer has really been sent (before, it could come first). A reaction that cannot be sent is given up after 4 seconds instead of 10, so it no longer holds the next one back.
+- FIXED: `autoviewonce debug` sent nothing: empty messages (this is how WhatsApp delivers a hidden view-once) were skipped before the report. They are reported now, with the stub type.
+- CHANGED: the check reports list the part names only (no raw bytes, no numbered entries), so they are short and readable.
+
+TurboFex v1.1.3 - your own menu picture and video, group status report
+CHANGED IN 1.1.3
+- NEW: the owner can use a picture and a video of their own in the menu. `setmenu image` (send a picture with it as the caption, or reply to a picture) and `setmenu video` (a video or GIF, up to 15 seconds, made small automatically). The files are kept in the data folder, so updates never remove them. `setmenu media default` brings back the TurboFex picture and video; `setmenu media card / video / off` chooses how the menu looks.
+- NEW: `antigstatus` now shows a report: how many group statuses were seen, deleted, refused by WhatsApp, skipped because the poster is an admin or the owner, skipped because the bot is not an admin, and posted from the bot's own account. `antigstatus report` shows it alone. After one test the report says exactly why a status was not deleted. Admins, the owner and the bot's own account are never affected: test with a member who is not an admin.
+- FIXED: `setmenu reset` no longer forgets the picture choice.
+
+TurboFex v1.1.2 - one-message menu, complete update notes, no false view-once
+CHANGED IN 1.1.2
+- FIXED: the menu header and the commands are now ONE message again: the TurboFex picture on top and the whole menu under it. (A video caption can only hold about 1000 characters, so the long menu cannot sit inside a video caption.) `setmenu media video` keeps the intro video with the header as its caption and the commands after it; `setmenu media off` is plain text. If the picture cannot be sent, the video, then plain text, is used.
+- FIXED: an ordinary picture was reported as "View-once picture". A message that arrives late and empty is asked from the phone; the answer used to be opened as a view-once even without the view-once flag. Now only a message that really carries the view-once flag is opened and labelled.
+- NEW: `autoviewonce debug` (owner): for 10 minutes the bot sends you a short report on what WhatsApp delivered for every picture, video or voice note (the names of the parts, the view-once flag, whether the file is included), so a view-once that is not caught can be seen and fixed.
+- FIXED: "What's new" after an update, and the update notice, were cut off (only 8 lines per version, 3 versions, 900 to 1500 characters). They now list every line of every newer version, and a long list is sent as several messages, cut at line ends.
+- FIXED: the update-complete message now shows only the versions newer than the one you had.
+
+TurboFex v1.1.1 - menu video, reactions fade, antigstatus first
+CHANGED IN 1.1.1
+- NEW: the menu opens with the TurboFex intro video (assets/menu.mp4) with the menu header as its caption, and the commands follow as text. When the video cannot be sent, the TurboFex picture (assets/menu.jpg) is sent instead; when that fails too, the menu is sent as plain text like before. Set MENU_MEDIA=off to switch it off.
+- CHANGED: the command reaction (the tick, warning or cross) is taken off again 5 seconds after the command is done (9 seconds for a warning or a failure). CMDREACT_CLEAR_SECONDS changes the time.
+- FIXED: antigstatus is now checked before every other rule (slow mode, media, mentions, silence), so nothing can stop a group status from being handled. The console and the new `antigstatus debug` report say if the delete was refused by WhatsApp. `antigstatus debug` (owner) sends a short report of the shape of unusual messages for 10 minutes, so an unrecognised group status can be seen. `antigstatus` now also shows whether detection is ready.
+
+TurboFex v1.1.0 - antigstatus fix, download fixes, clean replies, response standard
+CHANGED IN 1.1.0
+- FIXED: antigstatus (and the delete step of every protection) did not remove group statuses. WhatsApp names this message type differently between versions, so any "group status" message is now recognised, the sender is found even when WhatsApp hides it in the message key, and when the first delete fails a second one is made after a moment. If the bot is not an admin, the console now says so. antigm (group mention in a status) got the same sender fix.
+- FIXED: the reminder confirmation. `amute remind 10` now says "Reminder set successfully. I'll notify the group 10 minutes before the scheduled change." The inner detail about tagging is gone from every reply and from the amute status.
+- FIXED (dl, facebook, twitter, tiktok, ig, pinterest, soundcloud, play, ytsearch): "Failed to extract entry ... _ARC4.abi3.so" and "No space left on device". The downloader unpacked itself into the system temp folder every time, and stopped downloads left their files behind. Now all temporary files live in data/tmp, old leftovers are removed at start and every hour, the free space is checked before each download, and the downloader is never installed again just because the disk was full. A full disk now gives a clear message instead of a wrong one.
+- FIXED: Facebook links that open a login page ("Unsupported URL ... facebook.com/login"). Tracking parts and mobile hosts are removed from the link first, and a private or login-only post gets a clear answer ("It looks private, or the site wants a login") instead of six useless retries.
+- FASTER: the extra YouTube tries are only used for YouTube. Other sites fail or finish at once instead of repeating the same request.
+- CHANGED: every download command now answers errors in the same words, with a next step. People never see raw tool text; the owner gets one `▸ Details:` line only when the cause is unknown.
+- CHANGED: all replies of the newer commands now carry the TurboFex `▸` bullet (data lines and command lines). It is done once in whatsapp/format.js, so every command, old or new, follows it.
+- CLEANED: replies that explained inner workings were rewritten: catchup, announce, groupstats, twotruths, votekick, the "I must be a group admin" notes (antispam, antifake, groupextras, groupextras2, warn, captcha, actions), the QR reader, the update notice, the timer ("I will tag you" is now "I'll remind you", and 10m no longer shows 9m).
+- NEW: tests/v1010.test.js scans every reply string for banned phrases and checks the download errors, temp space and the bullet rule.
+- RULE: the response standard (R1) and the download error rule (R2) are written in the owner's private files (preferences, project guide and the AI instruction files). No separate standards file exists.
+
+TurboFex v1.0.9 - merged commands and a reminder before the group opens or closes
+CHANGED IN 1.0.9
+- MERGED: gpp and setpp are now ONE command, gpp. In a group it changes the GROUP picture (admins). `gpp bot` (or the old name `setpp`) changes the BOT's own picture (owner only; in a private chat plain `gpp` does that too). People who may not use it still get no reply.
+- MERGED: admins and tagadmins are now ONE command, admins: it lists the admins, tags them all and can carry a message (`admins please help`).
+- MERGED: inactive and purge are now ONE command, inactive (purge still works): `inactive` shows the silent members, `inactive confirm` (or `purge confirm`) removes up to 25 of them. Admins are never removed, the bot must be an admin, and at least 100 counted messages are needed before anyone is removed.
+- MERGED: warnings and topwarned are now ONE command, warnings (topwarned, warnboard, warning and warns still work): `warnings @person` for one person, `warnings` alone for the members with the most warnings, the most warned first, with medals. `topwarned` stays admins-only, as before.
+- MERGED: spinwheel is now part of choose. `choose pizza | burger | sushi` picks at once, `spinwheel pizza, burgers, sushi` (also `wheel`) spins the wheel first. Both accept | or commas (| wins when it is used, so a choice can contain a comma).
+- MERGED: amute, aunmute and quiettime (nightmode) are now ONE command, amute: `amute 22:00` closes every day, `amute open 06:00` (or `aunmute 06:00`) opens every day, `amute 22:00 06:00` does both (the old quiettime), `amute off` stops everything (`amute close off` / `amute open off` stop only one; `aunmute off` still stops only the opening). `amute` alone shows what is set.
+- NEW: reminder before the group closes or opens. `amute remind 10` sends a message 10 minutes (1 to 120) before every automatic close and open: "The group closes in 10 minutes (at 22:00)". It tags EVERYBODY without listing their numbers (a hidden tag). `amute remind off` stops it. A restart never sends it twice, a bot that was restarting still sends it (saying the real minutes left, never after the event), and a failed one is tried again the next minute.
+- CHANGED: every old command name still works as an alias, nothing was removed from what people can type. The files commands/setpp.js and commands/aunmute.js were deleted (they are in removed-files.txt, so the self-updating bots delete them too).
+- RULE: every new or changed command must reply in the WhatsApp format of the older commands (bold titles and labels, italic hints, commands in monospace with the real prefix, emoji first). It is now written in the owner's private preferences and the project guide, and a test (tests/v109.test.js) checks every reply of the merged commands.
+
+TurboFex v1.0.8 - faster downloads and fixes
+CHANGED IN 1.0.8
+- FASTER DOWNLOADS (play, dl, tiktok, ig, ytsearch, facebook, twitter, pinterest, soundcloud, spotify): (1) songs are no longer converted to MP3 (that was the slowest step): the m4a is sent as it is, and a webm is only repacked (about a second); (2) the downloader is not started just to ask its version before every download; (3) the way that worked last time is tried first, so a download no longer begins with ways that fail; (4) videos prefer a ready-made H.264 mp4 (nothing to join, and WhatsApp plays it) and every download uses 4 connections at once; (5) the download commands now run 3 at a time instead of one at a time, and the waiting message no longer holds the download back; (6) play looks at 6 search results instead of 10.
+- FIXED: dialcode now has the dial codes of 240 countries built in, so it works without any website (before: "I could not find a country called Kenya").
+- FIXED: movie looks in iTunes and then in Wikipedia, takes the best match, and says clearly when the services are down (before: "I could not find a movie" for every title).
+- FIXED: emojimix tries a second service and both emoji orders, and says "not answering" when the services are down (before it always said the emojis do not mix).
+- CHANGED: the menu header: every line name (User, Prefix, Mode, Commands, Version, Speed, Uptime and, for the owner, Host, Usage, RAM) starts with an emoji that fits it. The bot name has none. The categories below stay plain.
+
+TurboFex v1.0.7 - 60 new commands
+CHANGED IN 1.0.7
+- NEW, GROUP (10): lockdown (emergency lock, lockdown off undoes it), votekick, groupstats, catchup (AI summary of what you missed; an admin switches it on and the messages stay in memory only), topwarned, swearjar, announce, quiettime (close at night, open in the morning), welcomedm (a private welcome with the rules for new members) and weeklyrecap (also every Sunday with weeklyrecap on).
+- NEW, AI (10): explain, rewrite, describe (the AI looks at a picture), solve (a picture or text), caption, story, poem, brainstorm, persona (NelsonFx talks in a style you choose in a chat) and quizme.
+- NEW, DOWNLOADS AND MEDIA (10): spotify, facebook, twitter, pinterest, soundcloud, ytthumb, emojimix, tovideo, collage (a picture from the profile pictures of the members) and resize.
+- NEW, TOOLS (10): calendar, dateadd, loan, interest, fuelcost, teams, shuffle, habit (daily streaks), shoplist and gradecalc.
+- NEW, LOOKUPS (10): movie, tvshow, rhyme, synonym, wordofday, namemeaning, dialcode, postcode, hadith and emojimeaning.
+- NEW, GAMES AND FUN (10): neverhaveiever, twotruths, hotseat, wordchain, storychain, spinwheel, memorygame, pet (your own virtual pet), fish (earn Aurum in the Empire of Fex) and battleship.
+- NEW: the AI can look at pictures with a Gemini or a Groq key (describe, solve, caption on a picture).
+- PRIVACY: the group counters save only numbers (data/groupstats.json). The text of messages is never saved: catchup keeps the last 200 messages of a group in memory only, only when an admin switched it on, for 12 hours at most.
+- The AI (ai, chatbot, help ask) already knows all the new commands.
+- NOTE: the downloaders and lookups use free public services that can change or stop. When one does not answer, the command says so.
+
+TurboFex v1.0.6 - the AI knows the bot
+CHANGED IN 1.0.6
+- NEW: NelsonFx (the ai command, the chatbot and the new "help ask") now knows this bot: every command with its other names, category and who may use it, the version, what is new, and short guides for linking, modes, updates, AI keys and the Empire of Fex. It is built fresh from the bot for every question, so when the bot updates it knows the new commands at once. Nothing has to be trained.
+- NEW: "help ask <question>" (everybody): ask the AI how to use the bot. When the AI is not answering, the commands that fit the question are still listed.
+- NEW: the owner can teach it own facts: "chatbot teach <fact>", "chatbot notes" and "chatbot unteach <number or all>" (up to 25 notes). Keys, session IDs and passwords are refused, because anyone who asks the AI could hear a note.
+- PRIVACY: members, and everybody in a group chat, only hear about the commands the menu shows them. Owner-only commands are explained only to the owner in a private chat with the bot (the commands only the real owner may use: only to the real owner). Keys, session IDs and passwords are never part of what the AI knows.
+- NOTE: no command was added or removed.
+
+TurboFex v1.0.5 - Telegram stickers, DOWNLOAD and EFFECT menus, fewer reconnects
+CHANGED IN 1.0.5
+- NEW: tgsticker (aliases tgs, tgpack): turns a Telegram sticker pack into WhatsApp stickers. "tgsticker https://t.me/addstickers/Name" sends the first 10, "tgsticker <link> 11-30" or "all" sends more (up to 50 at a time, with a short pause). Needs a free Telegram bot token once: "setapi telegram <token>" (talk to @BotFather on Telegram). Animated Telegram stickers (.tgs) are skipped.
+- NEW: DOWNLOAD menu category: dl, ig, play, tiktok, ytsearch and tgsticker.
+- NEW: EFFECT menu category: all the audio effects (bass, slow, fast, nightcore, deep, chipmunk, echo, tremble, rewind), all the picture effects (blur, grey, invert, sepia, mirror, flip, sharpen, brighten, contrast, pixelate), plus vreverse, rotate and circle. AUDIO and EDITOR are empty now and hidden. Every command works as before.
+- CHANGED: the connection check waits longer before it reconnects (3 missed checks of 30 seconds, it was 2 of 20). Every reconnect makes WhatsApp show "Finished syncing with WhatsApp on Google Chrome (Ubuntu)" on the phone, so only a really dead connection is reconnected.
+- NEW: when the bot disconnects 3 times or more in an hour, the console says so and why that matters.
+
+TurboFex v1.0.4 - update notice every hour, with a console line for each check
+CHANGED IN 1.0.4
+- CHANGED: the bot looks for a new version one minute after connecting and then every hour (it was every 6 hours), and tells the owner once per version what changed. Each check writes one line to the console (newest version / told the owner / why it could not check).
+- NOTE: the notice exists from v1.0.2 on. A bot that still runs an older version cannot send it until it is updated once.
+
+TurboFex v1.0.3 - no more false "view-once" warnings
+CHANGED IN 1.0.3
+- FIXED: ordinary messages no longer trigger "arrived without its content (probably a view-once)". That message was only a guess; it is now written to the console only. A real view-once that is recognised is still copied to you, or reported with the reason.
+- NOTE: no other bot feature changed.
+
+TurboFex v1.0.2 - update notices and faster status views at the limit
+CHANGED IN 1.0.2
+- NEW: the bot now messages the owner when a new version is available (checked a minute after connecting, then every 6 hours, once per version), with the list of what changed and how to install it. It works with auto-update on or off. "update" shows the same list.
+- FIXED: once the daily like limit is reached, a status that only needed a like skips the slow queue completely, so viewing stays fast.
+- NOTE: no other bot feature changed.
+
+TurboFex v1.0.1 - status limit fix, more like emojis, cleaner public files
+CHANGED IN 1.0.1
+- FIXED: statuslimit now takes effect at once. Likes that were already waiting in the queue read the limit and the on/off switch again just before they are sent, so a lower limit or "autolikestatus off" is respected.
+- FIXED: viewing statuses stays fast after the daily like limit is reached (more views run at the same time, and nothing waits for a like that will not be sent).
+- CHANGED: statusemoji has no limit on how many emojis you give it (it was 8). "statusemoji reset" goes back to the default list.
+- NEW: the default like emojis are a list of 57 emojis (a random one is used for each status). A bot that still has the old single heart is moved to the new list; emojis you chose yourself are kept.
+- CHANGED: the public project holds only the bot: development-only files and notes are no longer part of the repository or the release ZIP.
+
+TurboFex v1.0.0 - nothing is forgotten on a restart, plus four new media commands
+CHANGED IN 1.0.0
+- FIXED (root cause): the status daily-like counter and the status totals lived only in memory, so after a restart the bot thought it had never liked anything. They are now saved (data/status-activity.json) together with what was done for each status and a history of the last interactions. A status that was only half done before a restart is finished, never repeated.
+- FIXED: a damaged groups.json (all group and owner settings) was silently replaced by empty defaults. Every saved file now goes through core/safefile.js: atomic write (temp file, fsync, rename), a .bak mirror, repair from .tmp/.bak, and a damaged file is MOVED aside (.corrupt-<time>), never overwritten or deleted. One copy per day is kept in data/backups (7 days).
+- FIXED: settings were written late and not at all on SIGTERM/SIGKILL. All saved files now flush on exit, restart, SIGTERM, SIGINT and SIGHUP; owner settings and money are written within a fraction of a second; a failed write is kept and retried; a 10-second safety net saves changes that a feature forgot to announce.
+- FIXED: the daily like limit could be passed when several likes waited at once, and "today" used UTC instead of the bot's time zone.
+- FIXED: scheduled messages, auto open/close times and birthday messages could be sent twice or skipped when the bot restarted in that minute. They remember on disk that they ran and catch up for up to 10 minutes (birthdays until noon).
+- FIXED: a reminder was deleted before it was sent, so a failed send or a restart lost it. It is removed only after it was sent (up to 5 tries).
+- FIXED: open captcha questions and the chatbot's short memory were forgotten on restart; they are saved now.
+- CHANGED: the old economy files are moved to data/legacy-economy instead of being deleted. Saved values always win over defaults. Two bots on one data folder are refused (core/lock.js).
+- NEW: ytsearch (aliases yts, ytfind): search YouTube, then "ytsearch video 2" or "ytsearch audio 2". The results are kept 30 minutes, also across a restart.
+- NEW: tiktok (alias tt): TikTok video without the watermark.
+- NEW: ig (aliases instagram, insta): Instagram post, reel or story (stories and private accounts need cookies, see ytcookies).
+- NEW: pdf (aliases topdf, makepdf): text to PDF, picture to PDF, and "pdf add" + "pdf make" to join pictures and PDFs. No new package is needed (core/pdfmaker.js). The list is kept on disk for 2 hours.
+- NEW: tests/persistence.test.js (restart, SIGTERM, SIGKILL and damaged-file tests with real processes) and tests/v100.test.js.
+
+TurboFex v0.9.13 - local-only files stay out of the public project
+CHANGED IN 0.9.13
+- NEW: local-only development files are kept out of the public project and out of the public release ZIP. They are never uploaded to GitHub.
+- NEW: helper scripts that keep local-only files out of Git and check the release ZIP before it is published.
+- NEW: removed-files.txt is the public list of old files that self-updating bots delete. Updates still understand the older list format.
+- CHANGED: the README no longer links to files that are not on GitHub. No bot feature changed.
+
+TurboFex v0.9.12 - menu headings in one style
+CHANGED IN 0.9.12
+- CHANGED menu: every category heading is now exactly "┏ ❏ NAME ❏" (for example "┏ ❏ AUDIO ❏", "┏ ❏ AUTOREPLY ❏", "┏ ❏ GAMES ❏"): plain capitals, no bold marks, no small caps. The old styles are gone. Commands, their symbols, descriptions, order, the "┗" closers and everything else are unchanged
+- TESTS menu tests check the new heading on every category
+
+TurboFex v0.9.11 - local preferences file
+CHANGED IN 0.9.11
+- NEW: a local-only preferences file for the owner, kept out of GitHub and out of the hosting ZIP made by git archive
+- CHANGED: local development notes were reorganised
+- TESTS: local checks for the notes (they run only on the owner's own copy)
+- NOTE no bot code changed in this version
+
+TurboFex v0.9.10 - clean menu headings, view-once diagnostics
+CHANGED IN 0.9.10
+- FIXED menu category headings had a doubled symbol ("┏✧ ✧ AUTOREPLY ✧"). Now "┏✧ AUTOREPLY ✧": one symbol before the name, the same one after it, command lines unchanged
+- CHANGED view-once: the console now shows what WhatsApp sent for an empty message (stub type and parameters), that the request to the phone was sent, and whether the phone's answer is still empty. After 20 seconds without an answer the owner gets a message saying WhatsApp did not give the file to this bot (reply with vv)
+- NOTE the log of 0.9.9 showed the phone was asked and did not hand the file over. That part is decided by WhatsApp, not by the bot
+- TESTS owner notice when the phone does not answer; menu heading format
+
+TurboFex v0.9.9 - view-once opened for real, symbols on menu headings, every log is a card
+CHANGED IN 0.9.9
+- FIXED auto view-once never opened anything. Cause found in your console: "A message arrived without content (stub none)". WhatsApp announces a view-once on a linked device but holds the file back, so the message has NO content at all. The watcher (whatsapp/watchers.js, early()) returned at once for such a message, so the phone was never asked for the file (the "ask the phone again" step only ran for messages that had at least an empty envelope). Now an empty message (no stub, or an unreadable one) in a chat covered by autoviewonce makes the bot ask the phone for it, once per message
+- FIXED the phone's answer is opened even if it comes back without the view-once flag (it is the answer to our own request, so it is treated as the view-once). Pictures AND videos (also voice notes) go to the viewoncejid chat with the sender, chat and time. Ordinary pictures that were never asked about are NOT copied
+- NEW if the phone does not send the file back within a minute, the console says so and points to vv
+- CHANGED menu: every category heading now uses the category's own symbol on both sides, for example "┏✧ ✧ AUTOREPLY ✧", "┏❂ ❂ BUDGET ❂", "┏✎ ✎ EDITOR ✎", the same symbol its command lines use. Names, descriptions, order and structure are unchanged
+- CHANGED console: every other log line now uses the same card design as the PRIVATE/GROUP cards: time, a coloured label (SYSTEM, VIEW ONCE, BACKUP, LINKING, UPDATE, ANTI-DELETE, ANTI-EDIT, STATUS, WARNING, ERROR), aligned rows, a verdict line and gradient rules. Long text wraps inside the card (nothing is cut) so it fits a phone. The QR code, the pairing code box and the setup questions stay exactly as they were. CONSOLE_STYLE=off gives the old plain lines back; CONSOLE_CHAT=compact gives one short line per event
+- TESTS new tests/v099.test.js (empty view-once chased, answer opened, videos, no false copies, menu symbols, event cards, QR kept as is); old menu tests updated for the new heading
+- STILL NEEDS A REAL WHATSAPP TEST: autoviewonce all, have someone send you a view-once picture and a video. Look for "Asking the phone for it" then "The phone sent the hidden message. Opening it." in the console. If the phone never answers, WhatsApp is not giving that message to a linked device and only vv (reply to it) can help
+
+TurboFex v0.9.8 - new menu look, view-once sent automatically
+CHANGED IN 0.9.8
+- CHANGED the menu: the header and every category now open with "┏symbol ◈ NAME ◈" and close with "┗symbol", using the category's own symbol (every category has a different one). The header shows User, Prefix [ . ], Mode, Commands, Version, Speed (how fast the bot took the message), Uptime; the owner also sees Host (Panel, Termux or server), Usage (memory used of the limit) and a RAM bar. Labels are in small capitals. menu <category> uses the same frame
+- FIXED auto view-once did not send by itself. The watcher now starts straight from the connection, ahead of the chat's waiting line (a busy chat could hold it back), and a message that arrives with no content at all makes the bot ask the phone for it
+- NEW when the full view-once file cannot be downloaded, the bot tries a third time with a fresh link from WhatsApp, and if that fails it still sends the small preview picture WhatsApp sent along, plus the notice with the reason
+- TESTS menu tests rewritten for the new frame; new view-once tests (preview fallback, started by the connection)
+- STILL NEEDS A REAL WHATSAPP TEST: autoviewonce all, then have someone send you a view-once. If nothing comes, look at the console for lines starting with the eye symbol: "View-once ... (content MISSING)" means WhatsApp held the file back; "could not save it" shows the reason
+
+TurboFex v0.9.7 - faster chatbot, view-once fix, new menu header, holographic console
+CHANGED IN 0.9.7
+- CHANGED the menu header: every detail (User, Mode, Prefix, Commands, Version, Uptime, and Memory and System for the owner) is on its own line under the one before, each line starts with the stick, and the "WhatsApp Assistant" line is gone (a subtitle only shows if the owner sets one with setmenu subtitle)
+- FIXED the chatbot and .ai were very slow. Three causes: (1) Gemini "thinks" before it answers (5 to 20 seconds), it is now told not to think, and the setting each model accepts is remembered; Groq reasoning models are told to think little; (2) the services were tried one after the other with 25 second waits, now a service that is quiet for 6 seconds gets company (the next one starts too) and the first good answer wins, and a service that fails hands over at once; the wait per call is 14 seconds instead of 25 and nobody waits more than 32 seconds in total; (3) there was no sign of life while waiting: the person now sees "typing..." until the answer comes
+- FIXED replies that contain a link were held back for up to 7 seconds while the bot looked up the link preview. The limit is now 1.5 seconds for the page and 1.2 seconds for the big picture (previews that are already known still come at once)
+- FIXED auto view-once did not open files. When a view-once message arrived without its file first and then complete (same message id), the complete one was thrown away as a duplicate before the watcher saw it. View-once files now go to their watcher before the duplicate check and have their own record (a message is only marked as done when its copy was really sent, so a failed download can be tried again by the next delivery)
+- NEW when a view-once arrives without its file, the bot asks the phone to send it again (if the WhatsApp library has that call) and waits up to 12 seconds. Only if nothing comes does the owner get the "reply with vv" notice
+- NEW vv: the bot remembers the complete view-once messages it saw in the last 30 minutes (in memory only, not the files). If the copy inside your reply lost its file details, vv uses the complete one. Works even when autoviewonce is off
+- CHANGED the view-once copy looks up the chat name while the file downloads (before, one after the other)
+- CHANGED the console cards: a smooth holographic gradient (cyan, violet, pink, peach), thin frame with a coloured stick, coloured badges for time, GROUP or PRIVATE and CMD (commands), the verdict (instant ... very slow) on the bottom line, and the speed bar in the speed colour (green fast, amber slowish, red slow). The "online" line has the same look
+- FIXED the console badges were unreadable on some host panels (the panel redraws the basic black and white). All colours are now written in full and the badge text has its own dark colour
+- FIXED the console showed the number as ++234... (two plus signs)
+- FIXED the card was too wide for phone screens and its last word wrapped ("very fas / t"). It is now 36 columns wide and follows the screen when the host tells the width
+- NEW console settings: CONSOLE_THEME=holo (default), aurora (green, blue, purple), sunset (gold, coral, purple) or gold (the old look); CONSOLE_COLOR=256 for old terminals; CONSOLE_WIDTH=28 to 70. CONSOLE_CHAT=off / compact and CONSOLE_COLOR=off work as before
+- TESTS new tests/v097.test.js (AI thinking switch, the race between services, typing, view-once copy / duplicate / missing file / retry, vv with a saved message); old console and menu tests updated to the new look
+- STILL NEEDS A REAL WHATSAPP TEST: send yourself a view-once picture from another phone with autoviewonce all, check that the copy arrives; .chatbot test and a chat reply (it should now take 1 to 4 seconds); the console look on your panel (try CONSOLE_THEME=aurora or sunset)
+- NOTE WhatsApp decides what a linked device may receive. If WhatsApp does not send the file to this bot at all (not even when asked again), no bot can open that view-once, and the owner is told so with the "reply with vv" hint
+
+TurboFex v0.9.6 - console cards, old category look back, push command saved
+CHANGED IN 0.9.6
+- NEW the console prints a small card for every message, in gold, white and black: a gold badge with the time (with seconds), a white badge with GROUP or PRIVATE, then Chat (group name and size), From (name and role: Creator, Admin or Member), Number, Kind (text, image, reaction... and the command name), Text (long messages wrap onto 3 lines, then are cut), and Speed with a bar and a word (instant to very slow). The card is printed when the bot has finished with the message, so the speed is real. It is 44 characters wide so it fits a phone. CONSOLE_CHAT=off hides it, CONSOLE_CHAT=compact gives one short line per message, CONSOLE_COLOR=off drops the colours
+- CHANGED the menu categories and the menu <category> view look as they did before 0.9.4 (the "┌─ NAME" box with "│" lines). The new header stays (a boxed title, details on plain lines, no grey code box, no clock time)
+- CHANGED: the owner's push command (unzip, commit, push, tag, GitHub Release in one line) is kept in the local notes. The ZIP is named TurboFex-hosting-vX_Y_Z.zip
+- NOTE 0.9.4 and 0.9.5 were never pushed: this version holds their changes too (chatbot and AI keys, anime, recipe steps)
+
+TurboFex v0.9.5 - menu header without the grey box
+CHANGED IN 0.9.5
+- FIXED the menu header left a big empty space above and below the details. WhatsApp pads grey code boxes, so the details are now plain lines inside the header box, two items per line (User, Mode, Prefix, Commands, Version, Uptime; the owner also sees Memory and System). The clock time and date were removed from the header: WhatsApp underlines them like links. The first category now follows the header after one empty line, and its commands sit directly under its name
+- The 0.9.4 changes (coloured console, chatbot, anime, recipes) are unchanged and still need the AI key step: .setapi gemini <key>, then .chatbot test
+
+TurboFex v0.9.4 - new menu header, coloured console, chatbot fix, anime fix, recipe layout
+CHANGED IN 0.9.4
+- CHANGED the menu has a new header (a boxed title with the bot name written normally, no spaced-out letters, then the details). Each category name is followed straight away by its commands, with no gap. menu <category> shows the name and the description on one line. No emoji in the menu (as before)
+- NEW the console shows every message the bot receives, one line each, in gold, white and black: gold badge with the time, white badge with GROUP or PRIVATE, the chat name in gold, then who wrote and what (commands in gold). Text is cut to 110 characters, colour codes typed by people are removed, and nothing is saved to a file. Switch it off with CONSOLE_CHAT=off; no colours with CONSOLE_COLOR=off. The "online" line uses the same colours
+- FIXED chatbot / .ai did not answer. Two reasons found in the public documentation (checked 31 Oct 2026): Google shut down gemini-2.0-flash on 1 June 2026 (the model the bot used), and the old key-free Pollinations address needs a key now. The bot now tries Gemini (a list of current models, remembering the one that works), then Groq, then Pollinations with a key, then the old address. NEW keys: setapi groq <key> (console.groq.com/keys, free) and setapi pollinations <key> (enter.pollinations.ai, free). Gemini keys are checked when saved and are sent in a header, not in the web address
+- FIXED the chatbot used to stay silent when the AI failed. It now says "I could not think of an answer just now" (at most once every 2 minutes in a chat). The owner also sees the reason and what to do. .ai does the same
+- NEW chatbot test (owner) asks every AI service a tiny question and shows which ones work. chatbot (status) now lists which keys are set
+- FIXED .anime said "not answering": Jikan (MyAnimeList) is often busy (503, 504). It now tries Jikan twice, then Kitsu, and the owner sees the reason if both fail
+- FIXED .meal and .cocktail: the method is now a numbered list with one step on each line (it was one block with "step 1 ... step 2" inside). The picture carries the name and the kind of dish, and the recipe follows as its own message so nothing is cut. A very long method is cut between steps with a link to the full recipe
+- NOTE none of the web services were called in testing (the tests use fakes). The AI keys are the one thing you must do: get a free key at aistudio.google.com/apikey and send .setapi gemini <key>, then .chatbot test
+- STILL NEEDS A REAL WHATSAPP TEST: the console colours on your host panel, the new menu on a phone, .anime, .meal, .cocktail, .chatbot test and a chatbot reply in a private chat and in a group (in a group tag the bot or start with NelsonFx; "chatbot where" decides where it answers)
+
+TurboFex v0.9.3 - 49 new commands: fun, lookup, tools and group
+CHANGED IN 0.9.3
+- NEW FUN (13): hug, slap, kiss (tag a person), love (love meter), pickup, dadjoke, fortune, advice, bored, catfact, dogfact, cat, dog (pictures). Jokes and facts have a saved list to fall back on when the web service is down
+- NEW LOOKUP (16): country, pokemon, anime, meal, cocktail, book, quran, npm, iss (space station), earthquake, holiday, sunrise (and sunset), moon (worked out by the bot), apod (NASA picture of the day), isup (is a website up), dns. All use free services that need no key
+- NEW TOOLS (14): timer (uses the same saved reminders as remind, so a restart does not lose it), uuid, wordcount, upper, lower, leet, zalgo, ascii (big block letters), roman (both ways), color (with a picture when the picture tool is installed), tip, percent, discount, timestamp
+- NEW GROUP (6): listonline (who wrote in the last few minutes), newmembers (who joined lately), staff (owner, sudo helpers, admins), nickname (own nickname per group; admins can set others; shown in rank and top), kickall (removes every member who is not an admin, only after a "kickall confirm" within 60 seconds), kicklist (remove several tagged people at once)
+- CHANGED rank and top show the nickname when a member has one
+- CHANGED the bot now remembers when it saw members join (data/joined.json) and, in memory only, who wrote lately (for listonline)
+- NOTE listonline cannot show who is really "online": WhatsApp does not tell bots that. It shows who wrote a message in the last few minutes, and says so in the reply
+- NOTE newmembers only knows about people who joined while the bot was in the group
+- SAFETY kickall and kicklist never remove group admins, the bot, the bot owner or sudo helpers. They remove people in small batches with a pause, and report how many were really removed
+- COUNTS members can use 311 commands in 14 categories (was 262); the bot has 384 commands in total
+- TESTS new tests/v093.test.js (30 tests, all web services replaced by fakes, no network). Version tests updated
+- STILL NEEDS A REAL WHATSAPP TEST: every new command on a phone, the cat/dog/pokemon/meal pictures, kickall and kicklist in a throw-away group, nickname in rank and top, and each web service (they can change or go away)
+
+TurboFex v0.9.2 - public product cleanup: silent permissions, clean ping and help, honest README, project guide
+CHANGED IN 0.9.2
+- CHANGED restricted commands are SILENT: a person who may not use an owner-only, admin-only or main-owner command gets no reply at all (no warning, no explanation, no "slow down"). The check now happens before the rate limit, the "turned off" notice, the maintenance notice and the "groups only" notice. The same for the restricted parts inside commands (rank, herald, realm on/off, delete, schedule, filter, stop, unschedule, birthday on/off, antipromote/antidemote, endgame, locked promote/demote)
+- CHANGED .ping shows one clear number ("Response time") instead of the bot / WhatsApp split. The split is written to the console for the owner, and .status still shows the average and slowest times
+- NEW .help is a short friendly guide for beginners (how to use commands, how to find them, what to try first, tips for admins and the owner). .menu keeps the full list; .menu <command> shows help for one command
+- FIXED antigstatus / antigm no longer tell group admins to run npm install; only the owner sees the technical hint
+- FIXED the "needs a group admin" notice no longer tells a plain member to do something only an admin can do
+- NEW: developer notes (architecture, files, pairing, commands, permissions, data, configuration, testing, deployment, known limitations), kept locally
+- NEW README.md rewritten for ordinary users. It no longer claims "300+ commands in 16 categories" (members can use 262 commands in 14 categories, checked by a test), "every message with a link shows a preview", "every command reply is formatted", or "runs for months without attention". Developer setup moved to local notes
+- CHECKED the session ID expiry: everything says "works once, expires after 5 minutes" (README, the local notes, the generated session_id.txt, the console help, and the pairing site page). A test now guards the wording
+- TESTS new tests/v092.test.js; six older tests that expected "Only admins can..." replies now expect silence
+- STILL NEEDS A REAL WHATSAPP TEST: silence for members in a real group, .ping and .help on a phone, pairing with the QR code and with the pairing code, a link preview, one media command, one restart
+
+TurboFex v0.9.1 - hosting and session ID fixes
+CHANGED IN 0.9.1
+- NEW optional config.env file in the main folder (SESSION_ID=..., PREFIX=..., TIMEZONE=...): the same idea as other WhatsApp bots. A variable set on the host always wins over the file, and updates never touch it
+- FIXED the session ID wording: an ID from the pairing site works once and expires after 5 minutes (the bot said 24 hours)
+- NEW the README tells people to download the hosting ZIP from the Releases page, not Code > Download ZIP (that one adds a TurboFex-main folder and the host cannot find index.js)
+- NEW: local developer notes (how the owner pushes from Termux, how a release is made, why the green Download ZIP button fails on hosts, how the session ID and the pairing site work)
+
+TurboFex v0.9.0 - the Empire, phases 4 and 5: the government, the court, seasons, festivals, nobility, guilds and dungeons
+CHANGED IN 0.9.0
+- NEW the government: elections ("election", "stand", "vote"), the Sovereign and three officers (Treasurer, Marshal, Steward: "appoint", "dismiss"), decrees, salaries paid from the treasury, the income tax ("tax", taken from the daily gift, work and the weekly bonus), the treasury ("treasury", grants and relief with a daily spending cap), laws ("law": Festival, Trade Holiday, Harvest Decree, Amnesty; big laws such as the Age of Prosperity and the Royal Levy need a referendum), referendums, impeachment (petition then vote), jail ("jail", "pardon"). The bot closes votes and starts the next election by itself and tells the group, tagging the people
+- NEW the court of law ("court", "sue"): a filing fee, a jury of citizens, a fine for the treasury and jail time on a guilty verdict
+- NEW seasons ("season", "season hall"): points from the daily gift, work, guild deposits and dungeons; prizes for the top three and the Champion title; Summer and Autumn weather
+- NEW festivals ("festival"): the realm celebrates every few days with extra pay for some hours
+- NEW titles and nobility ("nobility", "ennoble", "disgrace"): Knight, Baron, Count, Duke with limited seats, a cost for the treasury, a length and a pay perk
+- NEW guilds ("guild ..."): found, invite, join, bank, levels, a pay bonus for members
+- NEW dungeons ("dungeon open|join|leave"): parties, odds that grow with the party, shared loot of Aurum and goods
+- NEW prisoners cannot use daily, work, weekly, collect, trade or auction
+- NEW the profile shows the office, the noble title, the guild, the season place and the jail
+- NEW God controls for everything: every feature has an on/off switch and settings with safe ranges ("god settings government|court|season|festival|nobility|guild|dungeon"), and new God commands: crown, dethrone, officer, election, law, jail, pardon, treasury, tax, court, title, festival, season, guild, dungeon, clearstate. All of them are written in the Divine Ledger and work in a private chat after "god realm N"
+- CHANGED: God's settings now check the range for numbers given by code too, not only for text
+- CHANGED: the version is 0.9.0
+
+TurboFex v0.8.2 - the market and herald commands are back
+CHANGED IN 0.8.2
+- FIXED: "market" and "herald" were silent on every bot that updated by itself. the old-files list still listed commands/market.js (the file of the OLD market), so each update installed the new file and then deleted it. The line is gone, and the bot no longer deletes any file that the same update contains. Bots that already updated get the file back with this version
+- NEW test: the old-files list may never list a file the project has, and market, herald, trade and auction must be loaded commands
+- CHANGED: the version is 0.8.2 (the CI badge was removed from the README: the workflow is not used)
+
+TurboFex v0.7.11 - the Empire, phase 3: the Realm Market, the Herald news, trading and auctions
+CHANGED IN 0.7.11
+- NEW the Realm Market ("market", "market grain", "market buy grain 10"): every realm has its own price for Grain, Ore, Iron, Wine and Cloth. A price moves when citizens buy (up) and sell (down), comes back towards the normal value, swings a little by chance, and is hit by events (drought, bumper harvest, mine collapse, new seam, war, peace, festival, fashion, caravan, famine, boom, slump). Prices are worked out when somebody looks (at most 96 updates for a realm nobody looked at) and by the bot for realms with a Herald. Buying costs a little above the price; the extra goes to the realm's treasury. "sell" now pays the market price, and goods in the bag and the rank follow it
+- NEW the Realm Herald ("herald"): prices, breaking news and what is cheap or dear. An admin switches it on for the group with "herald on": it is then posted after every price update (about every 30 minutes) and tags for real the people who hold a good that moved or own the estate that makes it. It is off in every group until an admin asks for it
+- NEW trading between citizens ("trade @user grain 20 150", "trade accept", "trade decline", "trade cancel", "trade list"): offers wait 5 minutes, the goods are checked again when the offer is accepted, the realm takes a 2% fee from the seller
+- NEW auctions ("auction", "auction sell sword 1 200", "auction bid 3 250" or "bid 3 250", "auction info", "auction cancel"): goods and items go to the best bid. Bids are paid at once and given back when somebody bids more (at least 5% more), a bid in the last 2 minutes adds 2 minutes, the realm keeps 5% of the winning bid, goods always arrive even when the bag is full. The bot closes auctions by itself and tells the group (the seller and the winner are tagged)
+- NEW God controls: "god price grain 12", "god event [name|list]", "god herald" (post it now), "god market reset confirm", "god auction end|cancel <number>", and every number of the market, the Herald, trading and auctions as a setting with a safe range (for all realms or one realm), each part with its own on/off switch. Everything is written in the ledger and the realm is told when God acts from somewhere else (the people are tagged)
+- CHANGED: the market and the auctions are files of their own in core/realm/ that register their timed jobs with ticker.register and are loaded by the commands that use them. The scheduler does not know them
+- CHANGED: "sell" has no alias "trade" any more (trade is the new command). The label of a good's value now says it is the normal value the market price returns to; "god price" moves the price at once
+- NEW: tests for the market, the Herald (tags, quiet mode, failed posts), trading, auctions, the commands and God's controls
+
+TurboFex v0.7.10 - updates come straight from the pushed files
+CHANGED IN 0.7.10
+- CHANGED: the bot updates from the FILES in the GitHub repo. Push the files, raise the version in package.json, and every bot that starts sees it (it reads only package.json to check, and downloads the branch from GitHub when the version differs). The file turbofex-latest.zip is no longer needed; it (and GitHub Releases) is only a fallback when the files cannot be read
+
+TurboFex v0.7.9 - God announcements tag people for real
+CHANGED IN 0.7.9
+- FIXED: when God acts from a private chat (bless, curse, give, take, set purse, set rank, items, estates), the announcement in the group ("The heavens have spoken") showed the person as plain text @number. The person is now tagged for real, the same way the bot tags people when it answers in a group, so WhatsApp shows their name
+
+TurboFex v0.7.8 - fixes the start-up crash, linking with a session ID from the pairing site
+CHANGED IN 0.7.8
+- FIXED: the bot crashed on start with "Cannot find module './market'". core/scheduler.js still loaded the removed market file and never loaded the Empire's job ticker (core/realm/ticker.js), so the realm jobs could not run either
+- FIXED: updates can no longer ship this kind of crash. Before an update is installed, every relative require() in its files must point to a file inside the update, otherwise the update is rejected and nothing is changed
+- NEW: linking is done with the pairing site. Link on https://fiveafful-pair.onrender.com (built in, nothing to set), copy the session ID and paste it in the file session_id.txt (the bot creates it with the steps inside; the SESSION_ID variable also works). The console no longer asks for a number or shows a pairing code or QR. A bot without a login prints the steps and waits (also after WhatsApp logs it out). session_id.txt is never touched by updates The bot's number and owner come from the linked login
+- NEW: a NEW session ID replaces the current login (the old one is kept in data/session-previous). An ID that was already used is remembered and does nothing. A sleeping pairing site is waited for (up to 45 s, three tries)
+- CHANGED: the old console linking only runs when CONSOLE_LINK=1 is set (PAIR_METHOD and NUMBER then work as before)
+- NEW: tests for the scheduler, the session ID (also against the real pairing site code) and the update check
+
+TurboFex v0.7.7 - the Empire of Fex: a brand new economy, and God
+CHANGED IN 0.7.7
+- REMOVED the whole old coin economy: coins, jobs, gamble, rob, market and stocks, throne, governor, couples, pets, bounties, drops, quests, lottery, predictions, reports and their commands. Its saved data is deleted once, when this version starts first. Ranks and levels, games and everything else are untouched
+- NEW the Empire of Fex (phase 1): every group is a realm with its own citizens, money (Aurum) and treasury. Commands: daily, purse (balance), profile, bank, deposit, withdraw, give, wealth, shop, buy, realm. Ranks by net worth (Commoner, Citizen, Merchant, Noble, Lord) pay more. The bank pays interest, the shop sells a Fortune Charm, a Merchant's Satchel and titles. Chatting earns a little Aurum. Everybody starts from zero
+- NEW God (the bot owner, "god" command, also in a private chat with "god realm <number>"): every number of the Empire has a safe minimum and maximum and can be changed for all realms or one realm ("god set core.dailyBase 400 here"); every feature can be switched on or off; God can give, take, set the purse, set a rank, bless or curse a citizen, wipe a citizen or a realm (asks for the word "confirm"), close or open realms, and move citizens from one realm to another. Everything God changes is written in the Divine Ledger ("god ledger"), and the realm is told when God acts from somewhere else
+- NEW for the next phases: a settings registry (every feature registers its numbers, nothing is hard-coded), a job ticker for the scheduler, a common reply format and one command wrapper that checks the realm, the feature switch and private chats in one place
+- NEW the Empire, phase 2 - careers: choose Farmer, Miner, Scribe, Guard, Smith or Healer ("career"), then "work" for Aurum and goods. Careers have levels (more pay), a tool for each career (shop or workbench, +25% pay, wears out), a meal bonus, a bonus for the first work of the day, a waiting time, and a weekly bonus ("weekly"). Better careers need a higher rank. The Smith turns 2 Ore into 1 Iron
+- NEW phase 2 - estates: Farm, Mine, Weaver's Hut, Tavern and Forge ("estates", "collect") make Grain, Ore, Cloth, Wine and Iron while you are away. Buy, upgrade (5 levels) and sell them. The number of estates and the good ones depend on the rank. The realm keeps a tax of the goods in its granary (the government of a later phase will spend it). The Forge needs Ore from your bag
+- NEW phase 2 - goods, the bag and crafting: "inventory" (a bag with a size that grows with the rank), "sell" goods to the realm, "recipes" and "craft" (bread, tonic, fine tunic, sword and the six tools), "use" bread or tonic. Goods, items and estates count in your net worth, so they raise your rank
+- NEW God controls for all of it: every price, output, pay, level, waiting time, tax, storage, bag size and rank limit is a setting with a safe range (for one realm or all realms), every recipe can be closed, and "god item", "god estate", "god career" and "god stock" change citizens and look at the granary. Moving citizens now moves the bag, estates and careers too
+- CHANGED: the Empire's commands have their own spam limit, set by God (8 commands in 20 seconds by default). Bets in blackjack and duel now use Aurum of the group and stop when the realm is closed
+- FIXED: the captcha test no longer fails at random
+
+TurboFex v0.4.1 - clear profit numbers, quests, the throne, predictions, alerts and dividends
+CHANGED IN 0.4.1
+- NEW "profit" (pnl, gains): are you winning? Your profit overall, this week and in the last 24 hours, in plain numbers with a green or red verdict, and how it adds up
+- NEW "guide" (learn, howto): the market explained in 1 minute, with pages: guide stocks / profit / mood / property / loans / tips
+- After you buy, the bot tells you the break-even price. The portfolio shows profit overall and in 24 hours. The market and the news show a tip for the current mood
+- NEW "quests" (missions): every day 3 quests for the group (chat, daily, jobs, win a gamble, invest, sell for a profit, collect). Coins are paid by themselves, all 3 give a bonus, 12 quests in a week give a weekly prize
+- NEW "throne" (king): take the throne of the group, the old king gets 70% of the price back, the king earns 100 coins an hour (throne collect) and can write a decree
+- NEW "predict": admins ask a yes/no question, members bet coins, the winners share the pool (5% is taken). Everybody is refunded if nobody is on the other side, or it is cancelled or never settled
+- NEW "alert" (watch): alert TECH above 300 pings you in the group when the price gets there (up to 5, sent even when the news is off)
+- NEW: dividends. Telecom, bank, farm, pharma, power, retail and cement stocks pay a small dividend every day. Take it with "collect"
+- FIXED: market tests, break-even and ledger for markets that were saved before this version
+
+TurboFex v0.4.0 - the market economy, per-group coins, owner luck and a cheaper economy
+CHANGED IN 0.4.0
+- NEW owner command "luck": set the gamble chance of one person, from your private chat or a group. luck 2348012345678 80 / luck 2348012345678 70 1d alpha / luck off 2348012345678 / luck list. They are not told.
+- NEW owner command "ecoboost": multipliers for pay (work, fish, hunt, mine, daily), chat coins and shop prices. ecoboost pay 1.5 / shop 0.5 / chat 2 / reset
+- Coins are easier to earn: daily 500 (+50 a day in a row, up to 1000), work 150-400, fish 40-250, hunt 60-350, mine 100-500, chatting 5 coins (level up 100)
+- Things are cheaper: Lucky Charm 800, VIP 2,500, Legend 10,000, Rich 25,000; businesses and property cost half
+- NEW: the market. An admin or the owner switches it on in a group with "economy on". Every group then has its own mood (Boom, Stable, Recession, Inflation, Crash), news, prices and investors
+- NEW commands: economy, market, invest, sell, portfolio, bonds, property, business, collect, loan, repay. "news economy" shows the latest market headline
+- 10 made-up stocks (telecom, bank, farm, tech, oil, transport, pharma, cement, retail, power), 4 coins with wild swings, bonds, 4 kinds of property and 4 businesses
+- The mood moves prices, bond yield, loan interest, shop prices, job pay, rent and business profit. News is posted in the group when the mood changes ("economy news off" mutes it)
+- Prices update every 30 minutes for everybody at the same time. A bot that was off plays the updates back (at most 2 days)
+- Coin sinks and protection: trading fee, property stamp duty and tax, business tax, loan fee and interest; one trade uses at most 25% of the wallet, 30 seconds between trades, no price can fall more than 12% (stocks) or 25% (coins) in 24 hours
+- Loans: up to half of what you own, 7 days. While you owe you cannot give, gamble, bank or rob. Too much debt sells your investments (margin call)
+- Weekly prize: the best profit in % of the week (Monday to Sunday) wins coins and the 👑 title
+- CHANGED: coins are now per group (one purse per person in every group). A person's old bot-wide coins move into the first group where they use coins again. In a private chat the old purse is still used
+- CHANGED: shop prices and job pay (work, fish, hunt, mine) follow the mood in groups where the market is on. Marriage is per group too
+
+TurboFex v0.3.8 - 42 new commands, repeating schedules, link previews and fixes
+CHANGED IN 0.3.8
+- NEW: AI category with the chatbot NelsonFx: ai, chatbot, imagine, memegen, quotecard, summarize, grammar
+- NEW: Economy is its own category: work, fish, hunt, mine, bank, deposit, withdraw, rob, lottery, inventory, marry, divorce (and balance, daily, give, gamble, shop, buy, richest moved here)
+- NEW games: blackjack, higherlower, mines, typerace, flags, capitals, bingo
+- NEW group tools: disable, enable, captcha, antiraid, autosticker, purge, pin, unpin
+- NEW tools: crypto, prayer, verse, urban, timein, morse, binary, bmi, split, readqr (needs npm install for the QR reader)
+- NEW owner: leaveall, maintenance, setmenu, blocklist
+- autotyping / autorecording: no longer shown while a command runs; shown when someone writes to the bot; "autotyping test" shows every step and what WhatsApp refused
+- game intros now tag the players
+
+CHANGED IN 0.3.7
+- Games: the countdown message keeps its tags when it is edited (Game on! ... GO!)
+- No prefix mode: the bot answers its commands while a game runs; only the lobby words join / quit / start belong to the game
+- Tags in private chats (richest, balance, notices to the owner...): the phone number is tagged, so WhatsApp shows the name saved in the phone or the number; a hidden id is written as the name
+- ping shows where the time goes: bot time and WhatsApp time
+- Faster: group info after a group change waits at most 250 ms (it was up to 8 seconds); the typing indicator waits 500 ms (was 1000)
+- Cleaned: unused functions and imports removed
+
+CHANGED IN 0.3.6
+- Games: only admins (and the owner) can start a game, everybody else joins by typing join
+- No prefix mode: "join", "quit", "start" and a player's own words go to the game, not to a command with the same name (join was also a command, so members could not join)
+- autotyping / autorecording now also show when someone WRITES to the bot (private chats by default; "autotyping where dms / groups / all"), not only while a command is answered
+
+CHANGED IN 0.3.5
+- ONE number: the bot's number is also the owner (no separate owner number or pairing number). OWNER_NUMBER and PAIRING_NUMBER still work for older setups
+- First start: the bot asks for the number, then asks pairing code or QR code and shows only the one chosen (PAIR_METHOD and NUMBER skip the questions)
+- setprefix none: the old prefix no longer works
+- richest shows only the members of the group it is used in
+- All games need joining again (riddle, emojiquiz, wordle too)
+- antibot rewritten: antibot add / remove / list / check / strict, detects more bots
+- Faster: finding who sent a message no longer walks through the whole member list (bigger groups gain the most)
+
+FIXES IN 0.3.4
+- autotyping and autorecording now really show: the bot subscribes to the chat, shows "typing..." or "recording..." until the answer is sent
+- autoreact: choose where it works (autoreact where all / groups / dms / selected, autoreact add / remove / list for chats and people)
+- richest and mutelist tag the members (WhatsApp shows their name); nobody's number is written
+- silence: the member is told the first time they write
+- tagadmins follows private mode (owner only when the bot is private)
+- setapi: send an API key to the bot and it saves it; removebg <key> works too
+- lyrics: real lyrics through a licensed Musixmatch key (free plan shows part of the song); a link without a key
+- image: only a picture that matches the words you wrote (best match, not a random one)
+- riddle, emojiquiz and wordle: anyone can play without joining, members can start them in private mode
+- antispam: antispam off / delete / warn / kick, limit, seconds, repeat, reset
+- pmblocker: not for people in your contacts, people you have written to, or people you allow (pmblocker allow / deny / list)
+
+FORMATTING
+- The replies of the new commands now use the same WhatsApp formatting as the rest (bold titles and labels, commands in monospace, hints in italics)
+NEW COMMANDS (42)
+- Owner: autotyping, autorecording, alwaysonline, autoread, autobio, autoreact, pmblocker
+- Economy: balance, daily, give, gamble, shop, buy, richest (coins come from chatting where ranks are on, the daily bonus and duels)
+- Group: antibot, antitag, tagadmins, exportrank, silence, unsilence, mutelist
+- Media: lyrics (link only), tts, tovn, ocr, removebg (needs REMOVEBG_API_KEY), image, ssweb, shorten
+- Lookup and fun: news, github, ip, horoscope, quote, fact, meme
+- Games: riddle, emojiquiz, wordle, connect4, duel (with coin bet), roast
+
+CHANGED (fixes in 0.3.1)
+- Play: looks at 10 results and picks the real song (no covers, remixes, slowed, long mixes); more ways past YouTube blocks without cookies (extra clients, Piped servers); SoundCloud/Audius only for close matches
+- Group commands (rank, top, rules, setrules, report, birthday, setbirthday, giveaway) are in the GROUP category; Community category removed; no numbers beside categories
+- Members can use rank, top, rules, report, birthday, setbirthday, feedback when the bot is private
+- Tags show names: group tags use the group's id type; notices to the owner write the name
+- Link previews show the full card (bigger picture)
+- Status: views are instant in their own lane; nothing waits after the daily like limit
+- Server guard: a high host load average alone no longer blocks commands
+- Rank: messages typed on the bot account earn XP; phone and hidden ids merge
+- The "no content / view-once" guess is off by default (EMPTY_NOTICE=1 turns it on)
+NEW
+- region: change the bot time zone (region Nigeria)
+- schedule: weekdays, weekends, weekly mon,thu, monthly 1, every 2h; the owner can schedule a bot command (schedule daily 07:00 run joke)
+- setprefix none: use the bot with no prefix
+- Birthday wishes use WhatsApp's tag-all
+- Notes up to 4000 characters
+
+NEW
+- Link previews: every message with a link now shows the preview card (picture, title, description). The WhatsApp library only makes them when an optional package is installed, which is why none ever showed. The bot makes them itself and only reads public web addresses (linkpreview on / off / test)
+- Security: ratelimit, anticall, privacy, antipromote, antidemote, antimedia, slowmode
+- Community (new category): rules, setrules, report, rank, top, giveaway, birthday, setbirthday, feedback
+- Lookup (new category): weather, define, wiki, currency, translate
+- Media and tools: dl (video download), take (change a sticker's pack and author), attp (text sticker), setgpp (group picture), note, todo
+- Owner: stats (usage, busiest groups, last errors), broadcast (all groups, paced, with confirmation), linkpreview
+CHANGED
+- Downloads (play, dl) refuse private and internal addresses
+- Menu: new categories Security, Community and Lookup (alphabetical like the others)
+- promote and demote respect antipromote / antidemote
+
+TurboFex v0.3.0 - production release
+NEW
+- Login backup: a copy of the WhatsApp login is made daily (last 3 kept, never sent over WhatsApp) and restored automatically if the login file gets damaged. Commands: loginbackup, sessionclean. Old encryption files of chats silent for 90+ days are cleaned monthly
+- Safer updates: a downloaded update is checked before any file is replaced (every file must compile, required files must exist). A broken zip is rejected and nothing changes
+- Sticker credit: the stickers the bot makes show a pack name and author. Change it with stickerpack
+- Reactions: new "smart" mode (cmdreact smart): only slow commands get a reaction. Fewer messages, less ban risk
+- Status safety: daily like limit (statuslimit, default 200) and a pause between likes. Views are never limited
+- Tests and CI: 61 automated tests run on every push (npm test), a README for GitHub
+CHANGED
+- Every command reply now uses WhatsApp formatting (bold titles and labels, bullets, commands and examples in monospace). Content commands (jokes, translations, text tools) keep their content untouched
+- Menu categories are listed alphabetically
+- statusinfo rewritten and fixed
+FIXED
+- "flip" was defined by two commands (coin and picture flip) and "mute" by two (group close and video mute): one silently replaced the other. The coin command keeps "coin", the group command keeps "close"
+- Two login backups in the same second no longer fail
+
+TurboFex v0.2.9 - pairing code and QR together
+CHANGED
+- Linking shows the QR code AND, when PAIRING_NUMBER is set, a pairing code. The bot now checks WhatsApp's answer to the code request: if WhatsApp refuses it (as it does at the moment) you are told at once to use the QR instead of being given a code that can never work. If WhatsApp (or a library update) accepts codes again, the code simply works. PAIRING_CODE=1 is no longer needed
+
+TurboFex v0.2.8 - linking a new device works again (QR)
+FIXED
+- "Couldn't link device": since 28 July 2026 WhatsApp changed how new devices are linked and the WhatsApp library does not handle the new step. The bot now handles it itself: after you scan, it makes a new secret and shows the QR again, and the next scan completes the link. Linking now uses a QR code (the 8-letter pairing code is refused by WhatsApp at the moment, the library hands out a code that was never registered). While linking, the current WhatsApp Web version is looked up and the standard device identity is used
+CHANGED
+- relink is switched off: it logs the bot out first, and a failed new link would leave the bot offline. Use "vv" for view-once files
+- To try a pairing code anyway set PAIRING_CODE=1 (with PAIRING_NUMBER)
+
+TurboFex v0.2.7 - professional menu, formatted replies, AFK
+CHANGED
+- New menu: short lines that fit a phone screen (the long lines wrapped), no emojis in the categories, the details in an aligned monospace block, WhatsApp formatting throughout. "list" and "menu <command>" use the same style
+- Command replies get WhatsApp formatting automatically: bold title, bold labels, symbol bullets and commands in monospace. Replies that are content (fun, games, media, text tools) are left as they are. A command can opt out with format: false
+- The "update complete" / restart message uses the same style
+- AFK: everybody who messages or mentions you is told ONCE per AFK session, never again. AFK now stays ON until you send "afk off" (writing again no longer switches it off, and there is no "welcome back" message)
+
+TurboFex v0.2.6 - anti-edit, simple ping, locked bot name
+FIXED
+- Anti-edit: newer WhatsApp seals every edit in a secret envelope that the WhatsApp library cannot open, so the bot never saw the new text. The bot now opens it itself, using the secret key of the original message. It only works for messages the bot saw BEFORE they were edited (the saved copies are lost when the bot restarts). If the original was not saved you get a notice saying so instead of silence
+CHANGED
+- ping now shows just one line: Pong and the response time in ms
+- The bot name is locked: it comes only from the code (core/brand.js). If it is edited, the bot refuses to start until the file is restored or the bot is updated
+- "status" shows how many edits arrived sealed and how many could not be read
+
+TurboFex v0.2.5 - faster replies in groups
+FIXED
+- Encryption keys are now written to disk a moment AFTER sending instead of before it. On a host with a slow disk, replies in busy groups queued behind those writes (seconds). Everything is written when the bot stops or restarts. Switch off with FAST_KEYS=off
+- When someone joins, leaves or is promoted/demoted, or the group name/settings change, the saved group info is updated directly instead of being thrown away and fetched again (that fetch made the next reply slow)
+- Anti-delete picture/video saving: at most 2 at a time and only files under 2 MB, so a busy group cannot slow the bot down
+- Our own replies are no longer sent back to the bot as incoming events
+NEW
+- ping (owner) in a group shows where the time goes: "Group info" and "Encrypt and send"
+
+TurboFex v0.2.4 - instant status view, status like
+FIXED
+- Status view is now instant. The "statusdelay" setting used to hold back the view as well as the like; now the view always goes out at once and the delay (if you set one) only applies to the like and save
+- Status like: on accounts using hidden LID addresses, WhatsApp refuses a like whose recipient list mixes LID and phone-number addresses. The like now uses a LID-only list first, then phone numbers only, then the old list, reading WhatsApp's real answer after each. "statusinfo" shows the route that worked, how many likes were refused and how long the view took
+
+TurboFex v0.2.3 - status, "Waiting for this message", play and view-once
+FIXED
+- "Waiting for this message" in your private chat: notifications (copies, restart/update messages) were sent to your phone number, which many phones cannot open. They now go to you the way WhatsApp itself addresses you, and every private message to a known person uses that form
+- Reconnects every ~50 minutes: WhatsApp's new "status" notices were never acknowledged, so WhatsApp cut the connection. They are acknowledged now (this also explains repeated "Finished syncing" notices and the bot "sleeping")
+- Status like: the WhatsApp library has a known bug where likes on statuses are refused by WhatsApp while looking successful. The bot now reads WhatsApp's answer and, when refused, sends the like straight to the poster instead. "statusinfo" shows how many were refused and which route works
+- Status speed: statuses are handled 3 at a time (after a reconnect dozens arrive together), expired ones are skipped, and statusinfo shows how long WhatsApp took to bring the last status to the bot
+- Group speed: the list of who has which devices is now remembered for 30 minutes instead of 5, so the first message to a group after a quiet period no longer waits for WhatsApp
+- play: if YouTube blocks the server, the same song is looked up on SoundCloud and Audius. New "ytcookies" command saves a cookies.txt so YouTube works again
+NEW
+- relink android: one command logs the bot out and restarts it with the identity that can receive view-once files (you link it again once). The "no content" notice is now sent at most every 6 hours
+TurboFex v0.2.2 - status, anti-edit and play
+FIXED
+- Auto like status: back to the recipient list that worked before, and the like no longer waits behind the view. View and like now start together (the real "viewed" receipt goes first), so statuses are viewed and liked in about a second instead of several
+- Anti-edit: edit notices are no longer dropped as "already seen", and every shape WhatsApp uses for edits is understood. The console now logs each edit event it receives and "status" shows how many arrived
+CHANGED
+- play now ALWAYS sends audio, from a song name or from a link on almost any site (YouTube, TikTok, SoundCloud, Instagram, Facebook...). It uses the free yt-dlp tool, which the bot downloads once by itself the first time play is used and keeps up to date. Limits: 60 MB / 60 minutes (PLAY_MAX_MB, PLAY_MAX_SECONDS). If the downloader fails, a song name falls back to free music from Audius
+
+TurboFex v0.2.1 - view-once and group speed
+FIXED
+- View-once: a message that arrived with no content (WhatsApp does not give view-once files to linked devices) used to be thrown away silently. Now you are told, with the fix. Console also logs every view-once it sees
+- Group speed: the hourglass reaction only appears when a command takes longer than a moment, so quick commands (ping, menu) send just one reaction and the reply is no longer slowed down by it
+
+TurboFex v0.2.0 - speed, private-by-default, new menu, reactions, server protection
+CHANGED
+- Default prefix is now "." and the default mode is PRIVATE. In private mode the bot gives NO reply to anyone but the owner (running games, auto-replies and group protection still work)
+- New professional menu: small-caps fonts, a symbol per category, no prefix in front of every command. Technical details (RAM, platform) are shown to the owner only
+- Messages for normal users no longer show developer details (error reasons, "npm install", config.js...). The owner still sees them
+- WhatsApp library upgraded to 7.0.0-rc14 (needed for group status). The bot loads both old and new library versions
+FIXED
+- Bot "sleeping": a health check every minute reconnects a dead connection, group info is no longer fetched while you wait, messages that waited during a reconnect are answered, reconnects back off instead of looping
+- Repeated "Finished syncing with WhatsApp" notification: no more reconnect loops (another running copy of the bot now makes this one wait longer instead of fighting it)
+- Auto view status: the real "viewed" receipt is now sent directly, so the poster sees it even when the bot account has read receipts off. Auto like waits a moment after viewing and retries with a smaller list
+- Anti-edit: edits wrapped by WhatsApp are now understood; you are told if a copy cannot be sent
+- View-once: new command "vv" (reply to a view-once). Auto view-once now tells you when WhatsApp did not give the file to this device, instead of staying silent. Optional BOT_BROWSER=android (link again) lets the bot receive them
+- gstatus, antigstatus, antigm: work with the new library
+NEW
+- Server protection: heavy commands are blocked with a clear message when a tool is missing, memory is low, the server is overloaded or too many run at once ("server" command to see it or switch it off)
+- Command reactions: hourglass while working, tick when done, warning/cross on problems ("cmdreact on / clean / off")
+- Watermark under the result of media/audio/video/editor commands (and qr, fancy, play...) once they worked ("watermark on / off / text")
+- The bot now messages you "update complete" after an update, and "I am back" with a short menu and links after a restart ("restartmsg on / off")
+
+TurboFex v0.1.8 - fixes for slowness, "Waiting for this message", status, watchers and play
+FIXED
+- "Waiting for this message": the bot now keeps what it sent so WhatsApp can ask for it again (it was missing). The timing overrides added in v0.1.7 that could make connections and sends fail were removed
+- Slow sending (group replies took ~27 s): encryption keys are now kept in memory instead of being read from the disk every time
+- Missed commands: a command never waits behind another command (or a long job) in the same chat any more. Only game answers stay in order
+- Anti-delete: the copy is now a REPLY to the original message in its chat, names who sent it AND who deleted it (the admin or the sender), and also catches deletions that WhatsApp reports as updates. Never shown twice
+- Anti-edit: now also catches edits that WhatsApp reports as message updates or as wrapped messages, and replies to the original
+- Auto view-once: when WhatsApp refuses the download you are told why instead of silence
+- Status auto view/like/save: counters and a fallback way of marking a status as seen; the status owner is added to the like list in both id forms. !statusinfo shows what arrived and any problem
+- .block: phone numbers behind hidden ids are learned from messages, contacts and your groups (kept on disk), so blocking in a private chat now has the number. More request shapes are tried and the reply lists exactly what was tried
+- play: a song name now sends REAL AUDIO when it is on Audius (free music by independent artists); otherwise it shows YouTube links and says why
+- Auto repair of "Bad MAC" runs at most every 3 hours (each repair makes the next sends slower while WhatsApp sets up new keys)

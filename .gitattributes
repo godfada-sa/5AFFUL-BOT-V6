@@ -1,0 +1,2 @@
+# Release ZIPs are made with "git archive"; local-only files are left out of them.
+*.private.* export-ignore
