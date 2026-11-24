@@ -1,3 +1,7 @@
+5AFFUL V6 v1.0.6 - asticker takes videos too
+CHANGED IN 1.0.6
+- CHANGED `.asticker` now accepts a video clip when a sound is saved: it keeps the first 8 seconds, makes an animated sticker from it, and attaches the saved sound. The help and the error texts now say "sticker, picture or video". On Android the sound plays; on iPhone use `.asticker ios` (two messages), because WhatsApp on iPhone cannot play sound stickers yet.
+
 5AFFUL V6 v1.0.5 - asticker on iPhone, and a short update notice with clean naming
 CHANGED IN 1.0.5
 - CHANGED `.asticker` now says plainly that WhatsApp on iPhone cannot play sound stickers yet (the feature is Android-only for now). A sound sticker still works on Android. On iPhone use `.asticker ios` (same as `.asticker all`): the sticker and the sound arrive as two messages, which every phone plays.

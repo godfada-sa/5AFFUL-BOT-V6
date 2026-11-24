@@ -131,6 +131,17 @@ test('asticker command: save a voice note, put it on a sticker, and fall back to
     await run(['ios']); // the iPhone way: two messages
     assert.strictEqual(separately.jid, '123@g.us');
     assert.match(replies.at(-1), /Every phone plays this/);
+
+    // a video becomes an animated sticker (its first 8 seconds) with the saved sound
+    let kindSeen = null;
+    media.findMedia = () => ({ kind: 'video', source: { message: { videoMessage: { seconds: 30 } } } });
+    media.download = async () => Buffer.from('clip');
+    sound.fitSticker = async (buffer, kind) => { kindSeen = kind; return Buffer.from('animated'); };
+    sent = null;
+    await run([]);
+    assert.strictEqual(kindSeen, 'video');
+    assert.strictEqual(sent.sticker.toString(), 'animated');
+    assert.strictEqual(sent.audio.toString(), 'voice');
   } finally {
     Object.assign(media, { findMedia: real.findMedia, download: real.download });
     Object.assign(sound, {
