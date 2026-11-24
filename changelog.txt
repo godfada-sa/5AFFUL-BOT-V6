@@ -1,3 +1,7 @@
+5AFFUL V6 v1.0.8 - .save keeps just the status you reply to
+CHANGED IN 1.0.8
+- NEW `.save` (also `.savethis`): reply to a status with it and only that status is kept, the way 5AFFUL did it. The copy goes to the chat from `.statusjid` (your own chat by default), and nothing is posted in the chat where you replied, so the poster never sees the command. With `.statusreply on` the same reply is already saved, so only one copy goes out. If the file cannot be fetched, the warning goes to your own chat, never to the poster.
+
 5AFFUL V6 v1.0.7 - the .repo deploy card
 CHANGED IN 1.0.7
 - NEW `.repo` (also `.deploy`) sends one card: the picture of Safful, the deploy link https://github.com/godfada-sa/DEPLOY-5AFFUL-V6 and the two commands that start the bot, written like a terminal session. If the picture is missing on an old install, the card still sends the link.
