@@ -1,3 +1,7 @@
+5AFFUL V6 v1.0.7 - the .repo deploy card
+CHANGED IN 1.0.7
+- NEW `.repo` (also `.deploy`) sends one card: the picture of Safful, the deploy link https://github.com/godfada-sa/DEPLOY-5AFFUL-V6 and the two commands that start the bot, written like a terminal session. If the picture is missing on an old install, the card still sends the link.
+
 5AFFUL V6 v1.0.6 - asticker takes videos too
 CHANGED IN 1.0.6
 - CHANGED `.asticker` now accepts a video clip when a sound is saved: it keeps the first 8 seconds, makes an animated sticker from it, and attaches the saved sound. The help and the error texts now say "sticker, picture or video". On Android the sound plays; on iPhone use `.asticker ios` (two messages), because WhatsApp on iPhone cannot play sound stickers yet.

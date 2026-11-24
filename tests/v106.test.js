@@ -150,7 +150,7 @@ test('the AI really receives the knowledge: ai command (owner, member, group) an
       const base = { jid: 'x@s.whatsapp.net', prefix: '.', commandList: all, msg: { key: {}, message: {} }, reply: async (t) => out.push(t) };
       await ask.run({ ...base, rest: 'how do I kick someone', args: [], isOwner: false });
       const sent = JSON.parse(log[0].body);
-      assert.match(sent.systemInstruction.parts[0].text, /You are NelsonFx/, 'the normal persona is still there');
+      assert.match(sent.systemInstruction.parts[0].text, /You are s_afful/, 'the normal persona is still there');
       assert.match(sent.systemInstruction.parts[0].text, /\.kick \(also: \.remove\)/, 'and the knowledge about kick is added');
       assert.strictEqual(out.pop(), '🤖 Use .kick');
 
@@ -190,7 +190,7 @@ test('the chatbot chat uses the knowledge: owner in a private chat yes, a group 
   const msg = (jid, id) => ({ key: { remoteJid: jid, id, fromMe: false, participant: jid.endsWith('@g.us') ? '27855550001@s.whatsapp.net' : undefined }, message: { conversation: 'x' }, pushName: 'Ada' });
   try {
     await withFetch(() => geminiReply('ok'), async (log) => {
-      const text = 'NelsonFx how do I set the api key with setapi';
+      const text = 's_afful how do I set the api key with setapi';
       await chatbot.maybeReply({ sock, msg: msg(dm, 'K1'), jid: dm, text: 'how do I set the api key with setapi', botIds: [], commandList: all, isOwner: async () => true, isRealOwner: async () => true });
       assert.match(JSON.parse(log[0].body).systemInstruction.parts[0].text, /\.setapi/);
       log.length = 0;
@@ -213,7 +213,7 @@ test('ai.chat without extra knowledge is unchanged (persona only)', async () => 
     await withFetch(() => geminiReply('hi'), async (log) => {
       await ai.chat([{ role: 'user', content: 'hi' }]);
       const text = JSON.parse(log[0].body).systemInstruction.parts[0].text;
-      assert.match(text, /^You are NelsonFx/);
+      assert.match(text, /^You are s_afful/);
       assert.ok(!/BOT KNOWLEDGE/.test(text));
     });
   } finally { setKeys({}); }

@@ -326,10 +326,10 @@ test('the chatbot says it could not answer (it used to stay silent); only the ow
     });
     // and it answers when the service works
     setKeys({ gemini: 'AIza-test-key-0000000000' });
-    await withFetch(() => geminiReply('I am NelsonFx!'), async () => {
+    await withFetch(() => geminiReply('I am s_afful!'), async () => {
       const m = dm(3);
       await chatbot.maybeReply({ sock, msg: m, jid: m.key.remoteJid, text: 'who are you', botIds: ['27899999999'], isOwner: async () => false });
-      assert.strictEqual(sent[sent.length - 1], 'I am NelsonFx!');
+      assert.strictEqual(sent[sent.length - 1], 'I am s_afful!');
     });
   } finally {
     store.setAuto('chatbot', { on: false, scope: 'dms', chats: [] });

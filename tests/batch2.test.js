@@ -254,12 +254,12 @@ test('pin and unpin send the pin message for the replied message', async () => {
   assert.strictEqual(pins[1].c.type, 2);
 });
 
-test('NelsonFx chatbot: answers in private chats, in groups only when addressed, never when off', async () => {
+test('s_afful chatbot: answers in private chats, in groups only when addressed, never when off', async () => {
   const real = ai.chat;
   const asked = [];
-  ai.chat = async (messages) => { asked.push(messages.at(-1).content); return 'Hello, I am NelsonFx!'; };
+  ai.chat = async (messages) => { asked.push(messages.at(-1).content); return 'Hello, I am s_afful!'; };
   try {
-    assert.strictEqual(ai.NAME, 'NelsonFx');
+    assert.strictEqual(ai.NAME, 's_afful');
     chatbot.save({ on: false, scope: 'dms', chats: [] });
     const dmMsg = (text) => ({ key: { remoteJid: '27877778888@s.whatsapp.net', id: `B${++n}`, fromMe: false }, message: { conversation: text }, pushName: 'Sam' });
     sent.length = 0;
@@ -268,17 +268,17 @@ test('NelsonFx chatbot: answers in private chats, in groups only when addressed,
     chatbot.save({ on: true });
     await chatbot.maybeReply({ sock, msg: dmMsg('what is your name?'), jid: '27877778888@s.whatsapp.net', text: 'what is your name?', botIds: ['27899999999'] });
     assert.strictEqual(asked.length, 1);
-    assert.ok(sent.some((s) => s.c.text === 'Hello, I am NelsonFx!'));
+    assert.ok(sent.some((s) => s.c.text === 'Hello, I am s_afful!'));
     // groups: only the "dms" scope is on, so no answer there
     const gmsg = (text, extra) => ({ key: { remoteJid: GROUP, participant: '27811111111@s.whatsapp.net', id: `B${++n}` }, message: { extendedTextMessage: { text, contextInfo: extra } }, pushName: 'Sam' });
-    await chatbot.maybeReply({ sock, msg: gmsg('NelsonFx hello'), jid: GROUP, text: 'NelsonFx hello', botIds: ['27899999999'] });
+    await chatbot.maybeReply({ sock, msg: gmsg('s_afful hello'), jid: GROUP, text: 's_afful hello', botIds: ['27899999999'] });
     assert.strictEqual(asked.length, 1);
     chatbot.save({ scope: 'groups' });
     await new Promise((r) => setTimeout(r, 3100)); // the gap between two answers in one chat is different per chat: a new chat here
     const before = asked.length;
     await chatbot.maybeReply({ sock, msg: gmsg('just chatting with friends'), jid: GROUP, text: 'just chatting with friends', botIds: ['27899999999'] });
     assert.strictEqual(asked.length, before, 'not addressed: silent');
-    await chatbot.maybeReply({ sock, msg: gmsg('hey NelsonFx, what time is it?'), jid: GROUP, text: 'hey NelsonFx, what time is it?', botIds: ['27899999999'] });
+    await chatbot.maybeReply({ sock, msg: gmsg('hey s_afful, what time is it?'), jid: GROUP, text: 'hey s_afful, what time is it?', botIds: ['27899999999'] });
     assert.strictEqual(asked.length, before + 1, 'addressed by name');
     assert.match(asked.at(-1), /Sam: what time is it\?/);
     assert.strictEqual(chatbot.addressed(gmsg('hello', { mentionedJid: ['27899999999@s.whatsapp.net'] }), 'hello', ['27899999999']), true, 'tagged');
@@ -321,10 +321,10 @@ test('tools: morse, binary, bmi and split', async () => {
 
 test('setmenu changes the menu heading', async () => {
   store.setMode('public');
-  await handler.handleMessage(sock, dm(OWNER, '.setmenu title NelsonFx Bot'));
+  await handler.handleMessage(sock, dm(OWNER, '.setmenu title Safful Bot'));
   sent.length = 0;
   await handler.handleMessage(sock, dm(OWNER, '.menu'));
   await settle();
-  assert.match(texts().join('\n'), /NELSONFX/);
+  assert.match(texts().join('\n'), /SAFFUL/);
   await handler.handleMessage(sock, dm(OWNER, '.setmenu reset'));
 });

@@ -20,44 +20,44 @@ const reset = () => { delete ownername.js.data.custom; delete ownername.js.data.
 
 test('v1.4.3: the menu header shows the owner name that WhatsApp gives for the bot account', async () => {
   reset();
-  const head = await header(own('Nelson FX'));
-  assert.match(head, /┃ ◈ Owner: Nelson FX/);
+  const head = await header(own('Safful'));
+  assert.match(head, /┃ ◈ Owner: Safful/);
   assert.ok(head.indexOf('◈ Owner:') < head.indexOf('◈ User:'), 'the owner is the first line under the title');
-  assert.match(await header(own('Nelson FX'), false), /◈ Owner: Nelson FX/, 'members see it too');
+  assert.match(await header(own('Safful'), false), /◈ Owner: Safful/, 'members see it too');
 });
 
 test('v1.4.3: no name yet = no owner line (never a number); the name from the owner\'s own messages fills it in and is remembered', async () => {
   reset();
   const sock = own(undefined);
   assert.ok(!/◈ Owner:/.test(await header(sock)), 'nothing is shown until WhatsApp tells the name');
-  ownername.learn(sock, { key: { fromMe: true, remoteJid: '27811110099@s.whatsapp.net' }, pushName: 'Nelson FX' });
-  assert.match(await header(sock), /◈ Owner: Nelson FX/);
-  assert.match(await header(own(undefined)), /◈ Owner: Nelson FX/, 'remembered when WhatsApp does not give it again');
+  ownername.learn(sock, { key: { fromMe: true, remoteJid: '27811110099@s.whatsapp.net' }, pushName: 'Safful' });
+  assert.match(await header(sock), /◈ Owner: Safful/);
+  assert.match(await header(own(undefined)), /◈ Owner: Safful/, 'remembered when WhatsApp does not give it again');
   ownername.learn(sock, { key: { fromMe: true }, pushName: '27800000001' });
-  assert.match(await header(sock), /◈ Owner: Nelson FX/, 'a name that is only a number is ignored');
+  assert.match(await header(sock), /◈ Owner: Safful/, 'a name that is only a number is ignored');
 });
 
 test('v1.4.3: when the bot runs on another number, the owner\'s own WhatsApp name is used (not the bot account name)', async () => {
   reset();
   assert.ok(!/◈ Owner:/.test(await header(other)), 'the name of the bot number is never shown as the owner');
-  names.learnMessage({ key: { remoteJid: OWNER, fromMe: false }, pushName: 'Nelson FX' });
-  assert.match(await header(other), /◈ Owner: Nelson FX/);
+  names.learnMessage({ key: { remoteJid: OWNER, fromMe: false }, pushName: 'Safful' });
+  assert.match(await header(other), /◈ Owner: Safful/);
   ownername.learn(other, { key: { fromMe: true }, pushName: 'The Bot Number' }); // a bot-number message must not become the owner's name
   reset();
-  assert.match(await header(other), /◈ Owner: Nelson FX/);
+  assert.match(await header(other), /◈ Owner: Safful/);
 });
 
 test('v1.4.3: ownername shows, sets and resets the name; the handler learns it from the owner\'s messages', async () => {
   reset();
   const lines = [];
-  const run = (args) => ownerCmd.run({ sock: own('Nelson FX'), args, rest: args.join(' '), reply: async (t) => lines.push(t), prefix: '.' });
+  const run = (args) => ownerCmd.run({ sock: own('Safful'), args, rest: args.join(' '), reply: async (t) => lines.push(t), prefix: '.' });
   await run([]);
-  assert.match(lines.at(-1), /Nelson FX[\s\S]*from WhatsApp/);
+  assert.match(lines.at(-1), /Safful[\s\S]*from WhatsApp/);
   await run(['set', 'Boss', 'Nel']);
   assert.match(lines.at(-1), /\*Boss Nel\*/);
-  assert.match(await header(own('Nelson FX')), /◈ Owner: Boss Nel/, 'the name set by the owner wins');
+  assert.match(await header(own('Safful')), /◈ Owner: Boss Nel/, 'the name set by the owner wins');
   await run(['auto']);
-  assert.match(await header(own('Nelson FX')), /◈ Owner: Nelson FX/);
+  assert.match(await header(own('Safful')), /◈ Owner: Safful/);
   const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'whatsapp', 'handler.js'), 'utf8');
   assert.match(src, /ownername\.learn\(sock, msg\)/);
 });

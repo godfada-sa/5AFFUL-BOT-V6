@@ -90,11 +90,11 @@ test('chatbot: the person sees "typing..." while the AI thinks, then it stops', 
   const presence = [];
   const sent = [];
   const sock = { sendPresenceUpdate: async (state) => { presence.push(state); }, sendMessage: async (j, c) => { sent.push(c); return {}; } };
-  await withFetch(() => geminiOk('Hi, I am NelsonFx'), async () => {
+  await withFetch(() => geminiOk('Hi, I am s_afful'), async () => {
     await chatbot.maybeReply({ sock, msg: { key: { remoteJid: '27833333333@s.whatsapp.net', id: 'C1', fromMe: false } }, jid: '27833333333@s.whatsapp.net', text: 'hello', botIds: [], isOwner: async () => false });
   });
   assert.deepStrictEqual(presence, ['composing', 'paused']);
-  assert.strictEqual(sent[0].text, 'Hi, I am NelsonFx');
+  assert.strictEqual(sent[0].text, 'Hi, I am s_afful');
 });
 
 // ---------------------------------------------------------------- view once
