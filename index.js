@@ -2,23 +2,7 @@
 'use strict';
 
 // Upload this one file on a fresh Node.js panel: node index.js is already the
-// normal start command, so nothing has to be changed in the panel.
-//
-// It downloads 5AFFUL V6 from GitHub, unpacks it next to itself, installs the
-// packages and starts the bot. The bot's own entry point is supervisor.js, so
-// this installer never has to overwrite itself and `node index.js --update`
-// keeps working: it downloads the files again but keeps session/, data/,
-// accounts/ and config.env untouched.
-//
-//   node index.js            install on the first run, then start the bot
-//   node index.js --update   download the files again, then start the bot
-//   BOT_NO_START=1           install only
-//   BOT_SKIP_NPM=1           skip the npm install
-//   BOT_ARCHIVE_URL=...      use another .tar.gz/.zip or GitHub repository link
-//   BOT_FORCE_INSTALL=1      same as --update
-//
-// You can also paste your session IDs in SESSION_IDS below: they are written
-// into session_id.txt on start, so a fresh panel needs only this one file.
+
 
 // ==========================================================================
 //  YOUR SESSION IDS (optional)
@@ -28,8 +12,10 @@
 //  For a second number write a name first:  shop=TFX-XXXX-XXXX-XXXX
 //  (without a name it becomes account2). Example:
 //
-//      TFX-K7M2-9QXA-4BNP
-//      shop=TFX-AB2C-DE3F-GH4J
+//     const SESSION_IDS = `
+//     TFX-K7M2-9QXA-4BNP
+//     TFX-AB2C-DE3F-GH4J // for 2nd device
+//     `;
 //
 //  Paste and start within 5 minutes: the site's IDs expire after 5 minutes.
 //  On start these IDs are copied into session_id.txt; IDs already there are
