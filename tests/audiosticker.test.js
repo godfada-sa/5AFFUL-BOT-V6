@@ -126,6 +126,11 @@ test('asticker command: save a voice note, put it on a sticker, and fall back to
     await run(['all']);
     assert.strictEqual(separately.jid, '123@g.us');
     assert.match(replies.at(-1), /Sent separately/);
+
+    separately = null;
+    await run(['ios']); // the iPhone way: two messages
+    assert.strictEqual(separately.jid, '123@g.us');
+    assert.match(replies.at(-1), /Every phone plays this/);
   } finally {
     Object.assign(media, { findMedia: real.findMedia, download: real.download });
     Object.assign(sound, {
