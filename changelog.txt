@@ -1,3 +1,14 @@
+5AFFUL V6 v1.0.12 - send my status when someone asks
+CHANGED IN 1.0.12
+- NEW `.astatus on` / `.astatus off`: when someone replies to your status with a message that has "send" in it, the bot sends that status to them in the chat. Only your own status is sent, one answer per person per status, and whoever asked is left alone by the private message blocker.
+- CHANGED `.statusinfo` now shows whether send on ask is on.
+
+5AFFUL V6 v1.0.11 - phone notifications come back
+CHANGED IN 1.0.11
+- FIXED messages on your phone now notify again. A linked device that shows as online stops WhatsApp from pushing notifications, and a read receipt marks the message read on the phone as well. The bot now stays offline and no longer marks your private chats as read.
+- CHANGED `.phonepush` shows whether that guard is on, and `.phonepush fix` turns off Always online and Auto read and re-arms it.
+- NOTE the typing indicator still works: the bot goes online only for the few seconds it is shown, then straight back offline.
+
 5AFFUL V6 v1.0.10 - session IDs now start with 5AFFUL
 CHANGED IN 1.0.10
 - CHANGED session IDs from the pairing site now start with `5AFFUL`, like `5AFFUL-K7M2-9QXA-4BNP`. The steps are the same: copy the ID, paste it after SESSION_ID= in session_id.txt, save and restart within 5 minutes.
