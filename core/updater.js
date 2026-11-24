@@ -22,10 +22,17 @@ const VERSIONISH = /^v?\d+\.\d+/;
 
 function readJson(file) {
   try {
-    return JSON.parse(fs.readFileSync(path.join(ROOT, file), 'utf8'));
+    return parseJson(fs.readFileSync(path.join(ROOT, file), 'utf8'));
   } catch (err) {
     return null;
   }
+}
+
+// Some editors and tools write a UTF-8 BOM in front of a JSON file. JSON.parse
+// refuses that first character, which used to make a perfectly good update look
+// broken, so it is removed before parsing.
+function parseJson(text) {
+  return JSON.parse(String(text == null ? '' : text).replace(/^\uFEFF/, ''));
 }
 
 function localVersion() {
@@ -90,7 +97,7 @@ function inspectZip(buffer) {
 
   let version;
   try {
-    version = String(JSON.parse(pkg.getData().toString('utf8')).version || '');
+    version = String(parseJson(pkg.getData().toString('utf8')).version || '');
   } catch (err) {
     throw new Error('The update zip has a broken package.json.');
   }
@@ -116,7 +123,7 @@ async function fromRepoBranch(repo) {
     if (!res.ok) throw new Error(`GitHub answered with error ${res.status}.`);
     let version = '';
     try {
-      version = String(JSON.parse(await res.text()).version || '');
+      version = String(parseJson(await res.text()).version || '');
     } catch (err) {
       throw new Error('The package.json in the repo is broken.');
     }
@@ -254,7 +261,7 @@ function validateEntries(entries, prefix) {
     for (const missing of missingRequires(rel, source, files)) problems.push(`${rel} needs ${missing}, which is not in the update`);
   }
   try {
-    const pj = JSON.parse(files.get('package.json').getData().toString('utf8'));
+    const pj = parseJson(files.get('package.json').getData().toString('utf8'));
     if (typeof pj.version !== 'string' || !pj.version) problems.push('package.json has no version');
   } catch (err) {
     problems.push('package.json is not valid');
@@ -416,4 +423,4 @@ async function autoUpdateOnStart() {
 }
 
 module.exports = {
-  fromRepoBranch, filesToRemove, removeOldFiles, validateEntries, getLatest, applyUpdate, autoUpdateOnStart, reasonText, isNewer };
+  fromRepoBranch, filesToRemove, removeOldFiles, validateEntries, getLatest, applyUpdate, autoUpdateOnStart, reasonText, isNewer, inspectZip, parseJson };

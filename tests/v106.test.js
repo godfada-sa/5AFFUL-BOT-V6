@@ -32,6 +32,22 @@ test('the bot has commands for the AI to learn, and some are owner only', () => 
   assert.ok(ownerOnly.length > 20);
 });
 
+test('the changelog never leaks an owner-only command name to a member', () => {
+  const [a, b] = ownerOnly;
+  const sample = `FIXED .${a.name} and .${b.name} work again`;
+  const redacted = knowledge.redactOwnerCommands(sample, all);
+  assert.ok(!redacted.includes(`.${a.name}`) && !redacted.includes(`.${b.name}`), redacted);
+  assert.match(redacted, /an owner command/);
+
+  // whatever the newest changelog block says, a member's copy carries no owner-only name
+  const safe = knowledge.redactOwnerCommands(knowledge.latestChanges(), all);
+  for (const c of ownerOnly) {
+    for (const n of [c.name, ...(c.aliases || [])]) {
+      assert.ok(!new RegExp(`(^|[\\s(,])\\.${n}([\\s),]|$)`).test(safe), `.${n} survived the redaction`);
+    }
+  }
+});
+
 test('a member (or anybody in a group) never hears about owner-only commands', () => {
   for (const q of QUESTIONS) {
     for (const ctx of [{ isOwner: false }, { isOwner: true, isGroup: true, isRealOwner: true }]) {

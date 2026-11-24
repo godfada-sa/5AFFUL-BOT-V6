@@ -1,3 +1,7 @@
+5AFFUL V6 v1.0.13 - updating works again
+FIXED IN 1.0.13
+- FIXED updating stopped with "The update zip has a broken package.json". An invisible marker (a UTF-8 BOM) had slipped into package.json; it is gone, and the bot now ignores that marker in any update file.
+
 5AFFUL V6 v1.0.12 - send my status when someone asks
 CHANGED IN 1.0.12
 - NEW `.astatus on` / `.astatus off`: when someone replies to your status with a message that has "send" in it, the bot sends that status to them in the chat. Only your own status is sent, one answer per person per status, and whoever asked is left alone by the private message blocker.

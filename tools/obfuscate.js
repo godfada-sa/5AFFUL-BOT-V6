@@ -70,6 +70,11 @@ const OPTIONS = {
   log: false,
 };
 
+function stripBom(file) {
+  const buf = fs.readFileSync(file);
+  if (buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf) fs.writeFileSync(file, buf.subarray(3));
+}
+
 function copyTree(dir, prefix = '') {
   const files = [];
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -83,6 +88,9 @@ function copyTree(dir, prefix = '') {
       const to = path.join(OUT, rel);
       fs.mkdirSync(path.dirname(to), { recursive: true });
       fs.copyFileSync(from, to);
+      // a UTF-8 BOM in front of a .json file makes JSON.parse refuse it, and the
+      // published zip then looks "broken" to the updater. Never ship one.
+      if (rel.endsWith('.json')) stripBom(to);
       files.push(rel);
     }
   }
@@ -131,6 +139,19 @@ function main() {
   console.log(`copied ${files.length} files`);
   console.log(`obfuscated ${done} modules`);
   console.log(`kept readable ${kept.length} files`);
+
+  // the updater reads this file out of the published zip: a BOM here breaks .update
+  const pkgPath = path.join(OUT, 'package.json');
+  const pkgBuf = fs.readFileSync(pkgPath);
+  if (pkgBuf[0] === 0xef && pkgBuf[1] === 0xbb && pkgBuf[2] === 0xbf) {
+    failed.push('package.json in dist still starts with a UTF-8 BOM');
+  }
+  try {
+    JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+  } catch (err) {
+    failed.push(`package.json in dist is not valid JSON (${err.message})`);
+  }
+
   if (failed.length) {
     console.error(`\n${failed.length} file(s) failed:`);
     for (const line of failed) console.error(`  ${line}`);

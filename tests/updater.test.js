@@ -92,3 +92,32 @@ test('an update never deletes a file it ships itself, but still removes old file
   assert.deepStrictEqual(filesToRemove(text, new Set(['commands/market.js'])), ['core/economy.js']);
   assert.deepStrictEqual(filesToRemove(text), ['commands/market.js', 'core/economy.js'], 'without the guard it would delete it');
 });
+test('a package.json with a UTF-8 BOM is read, not called broken', () => {
+  const { parseJson, inspectZip, validateEntries } = require('../core/updater');
+  const AdmZip = require('adm-zip');
+  assert.deepStrictEqual(parseJson('\uFEFF{"version":"9.9.9"}'), { version: '9.9.9' });
+
+  const zip = new AdmZip();
+  zip.addFile('bot/package.json', Buffer.from('\uFEFF{"version":"9.9.9"}', 'utf8'));
+  zip.addFile('bot/changelog.txt', Buffer.from('notes', 'utf8'));
+  const info = inspectZip(zip.toBuffer());
+  assert.strictEqual(info.version, '9.9.9');
+  assert.strictEqual(info.prefix, 'bot/');
+  assert.strictEqual(info.notes, 'notes');
+
+  const files = [...good().filter((e) => !e.entryName.endsWith('package.json')), entry('package.json', '\uFEFF{"version":"1.0.0"}')];
+  assert.doesNotThrow(() => validateEntries(files, 'bot/'));
+});
+test('a package.json that is really broken is still refused', () => {
+  const { inspectZip } = require('../core/updater');
+  const AdmZip = require('adm-zip');
+  const zip = new AdmZip();
+  zip.addFile('bot/package.json', Buffer.from('{oops', 'utf8'));
+  assert.throws(() => inspectZip(zip.toBuffer()), /broken package\.json/);
+});
+test('the package.json that gets published carries no BOM (a BOM breaks .update)', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const buf = fs.readFileSync(path.join(__dirname, '..', 'package.json'));
+  assert.notDeepStrictEqual([...buf.subarray(0, 3)], [0xef, 0xbb, 0xbf], 'strip the BOM before publishing');
+});
