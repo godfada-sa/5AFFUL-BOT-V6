@@ -1,10 +1,10 @@
-# ⚡ 5AFFUL V6 v1.0.0
+# ⚡ 5AFFUL V6 v1.0.1
 
 **5AFFUL V6 is a WhatsApp bot that helps you run your groups and gives your chats tools, games and fun.**
 It protects groups from spam and links, welcomes new members, answers questions, makes stickers, plays games, and more.
 
-<!-- counts: 344 commands, 15 categories -->
-Members can use **344 commands in 15 categories** (the bot owner has even more, such as settings and diagnostics).
+<!-- counts: 346 commands, 15 categories -->
+Members can use **346 commands in 15 categories** (the bot owner has even more, such as settings and diagnostics).
 Send `.menu` to see them all.
 
 > ⚠️ **Please read:** WhatsApp does not officially allow bots, and a number used for a bot can be banned.
@@ -34,7 +34,7 @@ You need a WhatsApp number for the bot and a place where the bot can keep runnin
 4. Start the server. It downloads https://github.com/godfada-sa/5AFFUL-BOT-V6, installs the packages and starts the bot (the first start can take a few minutes).
 5. If you left the block empty, paste your session ID in `session_id.txt`, save, and restart.
 
-`node index.js --update` fetches a newer version but keeps `session/`, `data/`, `accounts/`, `session_id.txt` and `config.env`.
+`node index.js --update` fetches a newer version but keeps `session/`, `data/`, `accounts/`, `session_id.txt` and the settings file.
 IDs that are already in `session_id.txt` are never overwritten; the block only adds the ones that are missing.
 `BOT_NO_START=1` installs only, and `BOT_ARCHIVE_URL=...` uses another `.tar.gz` or `.zip` link.
 
