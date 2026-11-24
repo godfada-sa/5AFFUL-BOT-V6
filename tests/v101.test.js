@@ -72,11 +72,11 @@ test('a limit set while likes are waiting counts: the waiting likes are dropped,
 
 // ---- update notice
 const uw = require('../whatsapp/updatewatch');
-const LOG = 'TurboFex v1.0.3 - c\nCHANGED IN 1.0.3\n- FIXED: three\n\nTurboFex v1.0.2 - b\nCHANGED IN 1.0.2\n- NEW: two\n\nTurboFex v1.0.1 - a\nCHANGED IN 1.0.1\n- NEW: one\n';
-test('the update notice lists only the versions newer than the running one', () => {
+const LOG = '5AFFUL V6 v1.0.3 - c\nCHANGED IN 1.0.3\n- FIXED: three\n- NEW: more\n\n5AFFUL V6 v1.0.2 - b\nCHANGED IN 1.0.2\n- NEW: two\n\n5AFFUL V6 v1.0.1 - a\nCHANGED IN 1.0.1\n- NEW: one\n';
+test('the update notice is short: only the newest version, with a few lines', () => {
   const t = uw.whatChanged(LOG, '1.0.1');
-  assert.ok(t.includes('v1.0.3') && t.includes('v1.0.2') && !t.includes('v1.0.1'));
-  assert.ok(t.includes('FIXED: three'));
+  assert.ok(t.includes('v1.0.3') && t.includes('FIXED: three'));
+  assert.ok(!t.includes('v1.0.2') && !t.includes('v1.0.1'), 'older versions are not repeated');
   assert.strictEqual(uw.whatChanged(LOG, '1.0.3'), '');
 });
 

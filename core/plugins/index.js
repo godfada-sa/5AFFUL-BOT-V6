@@ -484,13 +484,13 @@ function removeWithdrawn(id, text) {
   if (!remove(id, true)) return false;
   try { if (folder) fs.rmSync(folder, { recursive: true, force: true }); } catch (e) { /* the plugin is already off */ }
   try { fs.rmSync(state.previousDir(id), { recursive: true, force: true }); } catch (e) { /* nothing saved */ }
-  tellOwner(text ? text(name) : `🚫 *${name} was removed from the TurboFex store, so I removed it from your bot.*\n▸ _Its commands are gone from the menu._`);
+  tellOwner(text ? text(name) : `🚫 *${name} was removed from the plugin store, so I removed it from your bot.*\n▸ _Its commands are gone from the menu._`);
   return true;
 }
 
 
 
-// ---------------------------------------------------------------- preinstalled plugins (chosen by TurboFex in the signed store index)
+// ---------------------------------------------------------------- preinstalled plugins (chosen in the signed store index)
 // What a bot has to do, decided from the signed list and what is installed. Nothing here touches the disk or the network.
 function planPreinstall(index, installed) {
   const list = registry.preinstallOf(index); const plan = { install: [], adopt: [], remove: [] };
@@ -506,7 +506,7 @@ function planPreinstall(index, installed) {
   return plan;
 }
 const preTold = new Set();
-// one plugin is fetched, checked and installed without the owner pressing confirm (TurboFex chose it and signed the list)
+// one plugin is fetched, checked and installed without the owner pressing confirm (the signed store chose it)
 async function installPreinstalled(id, mode, index) {
   const old = state.open().data.installed[id];
   const latest = registry.latestOf(index, id); if (!latest) return false;
@@ -514,7 +514,7 @@ async function installPreinstalled(id, mode, index) {
   if (!old || !old.store || registry.semverCmp(latest, old.store.version) > 0) {
     const f = await registry.fetchPlugin(id, latest); if (!f.ok) return false;
     const pr = prepare(id);
-    if (!pr.ok) { if (pr.why !== 'same' && !preTold.has(id)) { preTold.add(id); tellOwner(`⚠️ *TurboFex wanted to add the plugin ${id}, but could not.*\n▸ _${pr.why === 'invalid' ? 'It cannot be used on this bot.' : 'A command name is already used by another plugin.'}_`); } if (!old) return false; }
+    if (!pr.ok) { if (pr.why !== 'same' && !preTold.has(id)) { preTold.add(id); tellOwner(`⚠️ *The bot wanted to add the plugin ${id}, but could not.*\n▸ _${pr.why === 'invalid' ? 'It cannot be used on this bot.' : 'A command name is already used by another plugin.'}_`); } if (!old) return false; }
     else { const c = confirm(pr.code); if (!c.ok) return false; }
   }
   const rec = state.open().data.installed[id]; if (!rec) return false;
@@ -526,13 +526,13 @@ async function installPreinstalled(id, mode, index) {
   state.open().touch();
   const l = loaded.get(id); const name = l ? l.manifest.name : id;
   if (first) tellOwner(mode === 'activate'
-    ? `🧩 *TurboFex added the plugin ${name} to your bot, and it is on.*\n▸ _It comes with the bot and cannot be removed._`
-    : `🧩 *TurboFex added the plugin ${name} to your bot. It is off for now.*\n▸ *Turn it on:* \`${prefixOf()}plugin enable ${id}\`\n▸ _It comes with the bot and cannot be removed._`);
+    ? `🧩 *The bot added the plugin ${name} to your bot, and it is on.*\n▸ _It comes with the bot and cannot be removed._`
+    : `🧩 *The bot added the plugin ${name} to your bot. It is off for now.*\n▸ *Turn it on:* \`${prefixOf()}plugin enable ${id}\`\n▸ _It comes with the bot and cannot be removed._`);
   return true;
 }
 async function syncPreinstalled(index) {
   const d = state.open().data; const plan = planPreinstall(index, d.installed);
-  for (const id of plan.remove) removeWithdrawn(id, (name) => `🚫 *TurboFex stopped sending the plugin ${name}, so I removed it from your bot.*\n▸ _You can still install it yourself from the plugin store, if it is there._`);
+  for (const id of plan.remove) removeWithdrawn(id, (name) => `🚫 *The plugin ${name} is no longer sent with the bot, so I removed it.*\n▸ _You can still install it yourself from the plugin store, if it is there._`);
   for (const x of [...plan.install, ...plan.adopt]) { try { await installPreinstalled(x.id, x.mode, index); } catch (e) { /* the next check tries again */ } }
   if (plan.install.length || plan.adopt.length) { try { startTimers(); } catch (e) { /* ignore */ } }
 }

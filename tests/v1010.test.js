@@ -237,27 +237,29 @@ test('cmdreact: the reaction is removed a few seconds after the command is done'
   delete require.cache[require.resolve('../whatsapp/cmdreact')];
 });
 
-// ------------------------------------------------------------ update notices are never cut
-test('what changed: every line of every newer version, long ones split into several messages', () => {
+// ------------------------------------------------------------ update notices stay short (and are never cut)
+test('what changed: only the newest version, four short lines, long texts still split safely', () => {
   const uw = require('../whatsapp/updatewatch');
-  const long = (n) => `TurboFex v1.5.${n} - big one\n${Array.from({ length: 30 }, (_, i) => `- FIXED: line ${i} ${'word '.repeat(40)}`).join('\n')}`;
+  const long = (n) => `5AFFUL V6 v1.5.${n} - big one\n${Array.from({ length: 30 }, (_, i) => `- FIXED: line ${i} ${'word '.repeat(20)}`).join('\n')}`;
   const raw = [long(3), long(2), long(1)].join('\n\n');
   const txt = uw.whatChanged(raw, '1.5.0');
-  for (const v of ['1.5.3', '1.5.2', '1.5.1']) assert.ok(txt.includes(`*v${v}*`), v);
-  assert.strictEqual((txt.match(/line \d+ /g) || []).length, 90, 'nothing dropped');
-  assert.ok(!/…/.test(txt));
+  assert.ok(txt.includes('*v1.5.3*'));
+  assert.ok(!txt.includes('*v1.5.2*') && !txt.includes('*v1.5.1*'), 'older versions are not repeated');
+  assert.strictEqual((txt.match(/• /g) || []).length, 4, 'four lines at most');
+  assert.ok(txt.length < 1400, 'the note stays short');
   const parts = uw.splitText(`header\n${txt}\nfooter`);
-  assert.ok(parts.length > 1 && parts.every((p) => p.length <= 3500));
+  assert.ok(parts.every((p) => p.length <= 3500));
   assert.strictEqual(parts.join('\n'), `header\n${txt}\nfooter`, 'the parts together are the whole text');
   assert.deepStrictEqual(uw.splitText('short'), ['short']);
 });
 
-test('the update-complete message after a restart carries the whole what is new', async () => {
+test('the update-complete message after a restart carries a short what is new', async () => {
   const startup = require('../whatsapp/startup');
-  const raw = `TurboFex v9.9.9 - x\n${Array.from({ length: 20 }, (_, i) => `- NEW: item ${i} ${'text '.repeat(30)}`).join('\n')}\n\nTurboFex v1.0.0 - old\n- NEW: ancient`;
+  const raw = `5AFFUL V6 v9.9.9 - x\n${Array.from({ length: 20 }, (_, i) => `- NEW: item ${i} ${'text '.repeat(30)}`).join('\n')}\n\n5AFFUL V6 v1.0.0 - old\n- NEW: ancient`;
   const text = startup.compose({ type: 'update', from: '1.0.0', to: '9.9.9', notes: raw }, '.');
-  assert.strictEqual((text.match(/item \d+ /g) || []).length, 20);
-  assert.ok(!/ancient/.test(text), 'only versions newer than the old one');
+  assert.strictEqual((text.match(/item \d+ /g) || []).length, 4, 'four lines at most');
+  assert.ok(!/ancient/.test(text), 'only the newest version');
+  assert.ok(text.length < 2200, 'a short message, not a changelog dump');
 });
 
 // ------------------------------------------------------------ view-once: no more guessing

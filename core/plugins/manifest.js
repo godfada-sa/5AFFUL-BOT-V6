@@ -39,7 +39,7 @@ function validate(folder, { botVersion, taken } = {}) {
   if (typeof m.version !== 'string' || !reSemver.test(m.version)) bad('version must look like 1.0.0');
   if (m.apiVersion !== API_VERSION) bad('apiVersion must be ' + API_VERSION);
   if (m.minBotVersion !== undefined && (typeof m.minBotVersion !== 'string' || !reSemver.test(m.minBotVersion))) bad('minBotVersion must look like 1.3.5');
-  else if (m.minBotVersion && botVersion && !semverGte(botVersion, m.minBotVersion)) bad('needs TurboFex ' + m.minBotVersion + ' or newer');
+  else if (m.minBotVersion && botVersion && !semverGte(botVersion, m.minBotVersion)) bad('needs 5AFFUL V6 ' + m.minBotVersion + ' or newer');
   if (m.category !== undefined && !CATEGORIES.includes(m.category)) bad('category must be one of: ' + CATEGORIES.join(', '));
   if (typeof m.name !== 'string' || !m.name.trim() || m.name.length > 40) bad('name is required (up to 40 characters)');
   if (typeof m.description !== 'string' || !m.description.trim() || m.description.length > 200) bad('description is required (up to 200 characters)');
@@ -76,7 +76,7 @@ function validate(folder, { botVersion, taken } = {}) {
     for (const n of all) {
       if (typeof n !== 'string' || !reCmd.test(n)) { bad('bad command name: ' + String(n).slice(0, 20)); continue; }
       if (names.has(n)) bad('command name used twice: ' + n);
-      if (taken && taken.has(n)) bad('the command name "' + n + '" is already used by TurboFex or another plugin');
+      if (taken && taken.has(n)) bad('the command name "' + n + '" is already used by the bot or another plugin');
       names.add(n);
     }
     if (!WHO.includes(c.who)) bad('command ' + c.name + ': who must be everyone, admin or owner');

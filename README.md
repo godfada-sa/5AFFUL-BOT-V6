@@ -1,4 +1,4 @@
-# ⚡ 5AFFUL V6 v1.0.3
+# ⚡ 5AFFUL V6 v1.0.4
 
 **5AFFUL V6 is a WhatsApp bot that helps you run your groups and gives your chats tools, games and fun.**
 It protects groups from spam and links, welcomes new members, answers questions, makes stickers, plays games, and more.
@@ -246,4 +246,4 @@ needs a city and shows `.weather Lagos`.
 Developers: the project is plain Node.js (CommonJS, no build step). `npm test` runs the tests in `tests/`.
 
 ---
-5AFFUL V6 is built on the TurboFex engine by Nelson Fx (Trinity Flow). Released under the MIT license.
+5AFFUL V6 is made by Nelson FX (Trinity Flow). Released under the MIT license.
