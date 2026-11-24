@@ -1,6 +1,6 @@
 // Reads an optional config.env file in the bot's main folder (the same idea as other WhatsApp bots) and puts its
 // settings in the environment, e.g.
-//     SESSION_ID=TFX-K7M2-9QXA-4BNP
+//     SESSION_ID=5AFFUL-K7M2-9QXA-4BNP
 //     PREFIX=.
 //     TIMEZONE=Africa/Lagos
 // A setting that the host already has (a panel variable) is never overwritten, and an empty value is ignored.

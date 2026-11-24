@@ -15,7 +15,7 @@ Open the pairing site:
 
 In WhatsApp on the bot's phone: *Linked devices → Link a device*. If the pairing code is not accepted, use the **QR code** option.
 
-The site then gives you a session ID that looks like `TFX-K7M2-9QXA-4BNP`. It works **once** and **expires after 5 minutes**, so paste it and start the bot right away. If it expired, link again and use the new ID. The site runs on a free host, so the first visit can take up to a minute.
+The site then gives you a session ID that looks like `5AFFUL-K7M2-9QXA-4BNP`. It works **once** and **expires after 5 minutes**, so paste it and start the bot right away. If it expired, link again and use the new ID. The site runs on a free host, so the first visit can take up to a minute.
 
 ## 2. Start with `index.js`
 
@@ -24,16 +24,16 @@ The site then gives you a session ID that looks like `TFX-K7M2-9QXA-4BNP`. It wo
 3. Paste your session ID in the `SESSION_IDS` block near the top of `index.js`:
    ```js
    const SESSION_IDS = `
-   TFX-K7M2-9QXA-4BNP
+   5AFFUL-K7M2-9QXA-4BNP
    `;
    ```
-   A second number goes on a new line with a name: `shop=TFX-AB2C-DE3F-GH4J`.
+   A second number goes on a new line with a name: `shop=5AFFUL-AB2C-DE3F-GH4J`.
 4. Start the server. The normal start command **`node index.js`** already works, so nothing has to be changed in the panel.
 5. On the first run `index.js` downloads the bot, installs the packages and starts it. This can take a few minutes.
 
 The IDs you pasted are copied into `session_id.txt` automatically; IDs already in the file are kept and only the missing ones are added.
 
-**Without the `SESSION_IDS` block:** leave it empty, start once, then paste `SESSION_ID=TFX-...` into `session_id.txt`, save, and restart.
+**Without the `SESSION_IDS` block:** leave it empty, start once, then paste `SESSION_ID=5AFFUL-...` into `session_id.txt`, save, and restart.
 
 ### Commands
 

@@ -18,7 +18,7 @@
   },
   "env": {
     "SESSION_ID": {
-      "description": "Your login for the bot. Get it on https://fiveafful-pair.onrender.com (it looks like TFX-XXXX-XXXX-XXXX).",
+      "description": "Your login for the bot. Get it on https://fiveafful-pair.onrender.com (it looks like 5AFFUL-XXXX-XXXX-XXXX).",
       "required": true
     },
     "BOT_PREFIX": {

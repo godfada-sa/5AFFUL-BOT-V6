@@ -190,3 +190,36 @@ test('the ZIP carries a blank session_id.txt that the bot reads as "no ID yet"',
   assert.strictEqual(sessionid.readFile(file), '', 'blank: nothing to restore');
   assert.ok(!/^session_id\.txt$/m.test(fs.readFileSync(path.join(__dirname, '..', '.gitignore'), 'utf8')), 'it is no longer git-ignored');
 });
+
+// ----- the 5AFFUL session ID (the pairing site brands every new code with it)
+const NEW_ID = '5AFFUL-K7M2-9QXA-4BNP';
+
+test('a 5AFFUL session ID is accepted as typed, in lowercase, without dashes or without the prefix', () => {
+  assert.strictEqual(sessionid.normalize(NEW_ID), NEW_ID);
+  assert.strictEqual(sessionid.normalize('5afful-k7m2-9qxa-4bnp'), NEW_ID);
+  assert.strictEqual(sessionid.normalize('5AFFULK7M29QXA4BNP'), NEW_ID);
+  assert.strictEqual(sessionid.normalize(' 5AFFUL K7M2 9QXA 4BNP '), NEW_ID);
+  assert.strictEqual(sessionid.normalize('K7M2-9QXA-4BNP'), NEW_ID, 'the prefix may be left out');
+  assert.strictEqual(sessionid.normalize(NEW_ID.toLowerCase().replace(/-/g, '')), NEW_ID);
+});
+
+test('IDs from the older pairing site (TFX) still work for the minutes they live', () => {
+  assert.strictEqual(sessionid.normalize('TFX-K7M2-9QXA-4BNP'), 'TFX-K7M2-9QXA-4BNP');
+  assert.strictEqual(sessionid.normalize('tfxk7m29qxa4bnp'), 'TFX-K7M2-9QXA-4BNP');
+});
+
+test('a malformed 5AFFUL ID is refused, including look-alike letters', () => {
+  assert.strictEqual(sessionid.normalize('5AFFUL-K7M2-9QXA-4BN'), null, 'too short');
+  assert.strictEqual(sessionid.normalize('5AFFUL-K7M2-9QXA-4BNPQ'), null, 'too long');
+  assert.strictEqual(sessionid.normalize('5AFFUL-K7M2-9QXA-4BNO'), null, 'O is not in the alphabet');
+  assert.strictEqual(sessionid.normalize('5AFFUL-K7M2-9QXA-4BN1'), null, '1 is not in the alphabet');
+});
+
+test('the bot downloads its login with a 5AFFUL session ID', async () => {
+  reset();
+  const s = await site(new Map([[NEW_ID, CREDS('2348033333333')]]));
+  const dir = tmp();
+  assert.strictEqual(await sessionid.restore({ sessionId: '5afful k7m2 9qxa 4bnp', pairSiteUrl: s.url, sessionDir: dir }, quiet, fetch, fast), 'restored');
+  assert.strictEqual(read(dir).me.id, '2348033333333:5@s.whatsapp.net');
+  s.close();
+});

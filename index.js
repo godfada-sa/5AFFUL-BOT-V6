@@ -25,11 +25,11 @@
 //
 //  Pair each number at https://fiveafful-pair.onrender.com and paste the IDs
 //  between the backticks, one per line. The first one is the main bot.
-//  For a second number write a name first:  shop=TFX-XXXX-XXXX-XXXX
+//  For a second number write a name first:  shop=5AFFUL-XXXX-XXXX-XXXX
 //  (without a name it becomes account2). Example:
 //
-//      TFX-K7M2-9QXA-4BNP
-//      shop=TFX-AB2C-DE3F-GH4J
+//      5AFFUL-K7M2-9QXA-4BNP
+//      shop=5AFFUL-AB2C-DE3F-GH4J
 //
 //  Paste and start within 5 minutes: the site's IDs expire after 5 minutes.
 //  On start these IDs are copied into session_id.txt; IDs already there are
@@ -86,18 +86,30 @@ const fail = (text) => {
 };
 
 // ----- session IDs pasted in SESSION_IDS above (same rules as core/sessionid.js) -----
-const ID_RE = /^TFX-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/;
+// The brand in front of every ID is 5AFFUL; IDs from older pairing sites start with TFX and still work.
+const PREFIX = '5AFFUL';
+const OLD_PREFIXES = ['TFX'];
+const ID_RE = /^(?:5AFFUL|TFX)-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/;
 const SESSION_FILE = path.join(ROOT, 'session_id.txt');
 
 function normalizeId(raw) {
-  let id = String(raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-  if (id.startsWith('TFX')) id = id.slice(3);
-  if (id.length !== 12) return null;
-  const full = `TFX-${id.slice(0, 4)}-${id.slice(4, 8)}-${id.slice(8, 12)}`;
+  const flat = String(raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  let body = flat;
+  let head = PREFIX;
+  // a leading word is only the prefix when the 12-character body follows it
+  for (const name of [PREFIX, ...OLD_PREFIXES]) {
+    if (flat.length === name.length + 12 && flat.startsWith(name)) {
+      body = flat.slice(name.length);
+      head = name;
+      break;
+    }
+  }
+  if (body.length !== 12) return null;
+  const full = `${head}-${body.slice(0, 4)}-${body.slice(4, 8)}-${body.slice(8, 12)}`;
   return ID_RE.test(full) ? full : null;
 }
 
-// one ID per line:  TFX-...,  SESSION_ID=TFX-...,  shop=TFX-...,  SESSION_ID_SHOP=TFX-...
+// one ID per line:  5AFFUL-...,  SESSION_ID=5AFFUL-...,  shop=5AFFUL-...,  SESSION_ID_SHOP=5AFFUL-...
 // lines starting with # or // are notes; doubles are ignored
 function sessionIdsFrom(text) {
   const out = [];
@@ -125,7 +137,7 @@ function sessionFileHeader() {
   return [
     '# 5AFFUL V6 SESSION ID',
     '# One session ID per line. The first line is the main bot.',
-    '# A second number: write a name first, e.g.  shop=TFX-XXXX-XXXX-XXXX',
+    '# A second number: write a name first, e.g.  shop=5AFFUL-XXXX-XXXX-XXXX',
     '# (without a name the bot calls it account2).',
     `# Get the IDs at ${PAIR_SITE} - they expire after 5 minutes.`,
     '',

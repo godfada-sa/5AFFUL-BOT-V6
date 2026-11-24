@@ -45,7 +45,7 @@ module.exports = {
   // Time zone used for the menu clock and auto open/close, e.g. 'Africa/Johannesburg' (.region changes it too)
   timezone: process.env.TIMEZONE || 'Africa/Accra',
 
-  // Linking with a session ID: link on the pairing site, copy the ID (TFX-XXXX-XXXX-XXXX) and paste it in the file
+  // Linking with a session ID: link on the pairing site, copy the ID (5AFFUL-XXXX-XXXX-XXXX) and paste it in the file
   // session_id.txt (the bot creates it and tells you when it needs it). The SESSION_ID variable of the host works too.
   pairSiteUrl: process.env.PAIR_SITE_URL || 'https://fiveafful-pair.onrender.com',
   sessionId: process.env.SESSION_ID || '',

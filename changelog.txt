@@ -1,3 +1,8 @@
+5AFFUL V6 v1.0.10 - session IDs now start with 5AFFUL
+CHANGED IN 1.0.10
+- CHANGED session IDs from the pairing site now start with `5AFFUL`, like `5AFFUL-K7M2-9QXA-4BNP`. The steps are the same: copy the ID, paste it after SESSION_ID= in session_id.txt, save and restart within 5 minutes.
+- NOTE IDs handed out before this change still work while they last, so a bot that is already linked keeps working.
+
 5AFFUL V6 v1.0.9 - plain words in the notes
 CHANGED IN 1.0.9
 - CHANGED the update notes and the bot's own answers now say everything in plain English. They no longer name tools or bots that users have never seen; they say what the bot sends, what it keeps and where the copy goes.

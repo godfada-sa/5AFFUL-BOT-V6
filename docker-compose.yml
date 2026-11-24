@@ -1,9 +1,9 @@
 # Put your settings in a file called .env next to this file (Docker Compose reads it by itself), for example:
-#   SESSION_ID=TFX-K7M2-9QXA-4BNP
+#   SESSION_ID=5AFFUL-K7M2-9QXA-4BNP
 #   TIMEZONE=Africa/Lagos
 #   BOT_PREFIX=.
 #   ACCOUNTS=main,shop            (only when you want several accounts; see "Several accounts" in README.md)
-#   SESSION_ID_SHOP=TFX-....      (the session ID of the account called shop)
+#   SESSION_ID_SHOP=5AFFUL-....   (the session ID of the account called shop)
 services:
   turbofex:
     build: .
