@@ -153,3 +153,188 @@ test('asticker command: save a voice note, put it on a sticker, and fall back to
     });
   }
 });
+
+// ---- 8 second limit, and a video's own sound in one step -------------------
+
+// the command keeps the saved sound in module state, so each new test starts
+// from a clean module: no test inherits a sound from another
+const freshCommand = () => {
+  const file = require.resolve('../commands/audiosticker');
+  delete require.cache[file];
+  return require(file);
+};
+
+const stubs = (sound) => {
+  const real = {
+    toOpus: sound.toOpus,
+    audioDuration: sound.audioDuration,
+    extractAudio: sound.extractAudio,
+    makeWaveformSticker: sound.makeWaveformSticker,
+    fitSticker: sound.fitSticker,
+    sendSoundSticker: sound.sendSoundSticker,
+    sendSeparately: sound.sendSeparately,
+  };
+  const media = require('../whatsapp/media');
+  const realMedia = { findMedia: media.findMedia, download: media.download };
+  const put = (over) => Object.assign(sound, over);
+  const restore = () => {
+    Object.assign(sound, real);
+    Object.assign(media, realMedia);
+  };
+  return { media, put, restore };
+};
+
+test('sound sticker: the limit is 8 seconds, and a longer voice note is cut down instead of reused', async () => {
+  const media = require('../whatsapp/media');
+  const sound = require('../whatsapp/audiosticker');
+  const cmd = freshCommand();
+  const s = stubs(sound);
+  const seen = {};
+  let sent = null;
+  const replies = [];
+
+  assert.strictEqual(sound.MAX_SOUND_SECONDS, 8, 'the sound sticker carries 8 seconds');
+
+  try {
+    s.media.findMedia = () => ({ kind: 'audio', source: { message: { audioMessage: { mimetype: 'audio/ogg; codecs=opus', ptt: true, seconds: 45, url: 'https://mmg.whatsapp.net/long', mediaKey: Buffer.alloc(32, 2) } } } });
+    s.media.download = async () => Buffer.from('long-voice');
+    s.put({
+      toOpus: async (buffer, options) => { seen.toOpus = options; return { buffer: Buffer.from('cut'), mimetype: 'audio/ogg; codecs=opus' }; },
+      audioDuration: async () => 7.6,
+      makeWaveformSticker: async () => Buffer.from('wave'),
+      sendSoundSticker: async (_sock, jid, sticker, audio, options) => { sent = { jid, sticker, audio, options }; },
+    });
+
+    await cmd.run({ sock: {}, msg: { key: { id: 'C1' } }, jid: '123@g.us', args: [], prefix: '.', botIds: [], reply: async (text) => replies.push(text) });
+
+    assert.strictEqual(seen.toOpus.maxSeconds, 8, 'a 45 second voice note is cut to the sticker limit');
+    assert.strictEqual(sent.audio.toString(), 'cut');
+    assert.strictEqual(sent.options.seconds, 8, 'the phone is told the length it actually gets');
+    assert.strictEqual(sent.options.audioDescriptor, undefined, 'the long original descriptor is not reused');
+  } finally {
+    s.restore();
+  }
+});
+
+test('asticker: replying to a video that has sound uses the video own sound, no save step', async () => {
+  const sound = require('../whatsapp/audiosticker');
+  const cmd = freshCommand();
+  const s = stubs(sound);
+  const seen = {};
+  let sent = null;
+  const replies = [];
+
+  try {
+    s.media.findMedia = () => ({ kind: 'video', source: { message: { videoMessage: { seconds: 30 } } } });
+    s.media.download = async () => Buffer.from('clip');
+    s.put({
+      extractAudio: async (buffer, options) => {
+        seen.extract = { buffer: buffer.toString(), options };
+        return { buffer: Buffer.from('vidsound'), mimetype: 'audio/ogg; codecs=opus', seconds: 8 };
+      },
+      fitSticker: async (buffer, kind) => { seen.kind = kind; return Buffer.from('animated'); },
+      sendSoundSticker: async (_sock, jid, sticker, audio, options) => { sent = { sticker, audio, options }; },
+    });
+
+    await cmd.run({ sock: {}, msg: { key: { id: 'C2' } }, jid: '123@g.us', args: [], prefix: '.', botIds: [], reply: async (text) => replies.push(text) });
+
+    assert.strictEqual(seen.extract.buffer, 'clip', 'the sound comes out of the video itself');
+    assert.strictEqual(seen.extract.options.maxSeconds, 8);
+    assert.strictEqual(seen.kind, 'video');
+    assert.strictEqual(sent.sticker.toString(), 'animated');
+    assert.strictEqual(sent.audio.toString(), 'vidsound');
+    assert.strictEqual(sent.options.seconds, 8);
+    assert.match(replies.join('\n'), /Reading the sound/);
+  } finally {
+    s.restore();
+  }
+});
+
+test('asticker: a video with no sound, and nothing saved, says so and sends nothing', async () => {
+  const sound = require('../whatsapp/audiosticker');
+  const cmd = freshCommand();
+  const s = stubs(sound);
+  let sent = null;
+  const replies = [];
+
+  try {
+    s.media.findMedia = () => ({ kind: 'video', source: { message: { videoMessage: { seconds: 12 } } } });
+    s.media.download = async () => Buffer.from('clip');
+    s.put({
+      extractAudio: async () => { throw Object.assign(new Error('no audio stream'), { code: 'NO_AUDIO' }); },
+      fitSticker: async () => Buffer.from('animated'),
+      sendSoundSticker: async () => { sent = 'sent'; },
+    });
+
+    await cmd.run({ sock: {}, msg: { key: { id: 'C3' } }, jid: '123@g.us', args: [], prefix: '.', botIds: [], reply: async (text) => replies.push(text) });
+
+    assert.strictEqual(sent, null, 'no sticker is sent without a sound');
+    assert.match(replies.at(-1), /no sound of its own/);
+    assert.match(replies.at(-1), /asticker save/);
+  } finally {
+    s.restore();
+  }
+});
+
+test('asticker: saved on a video uses the sound you saved instead of the video own sound', async () => {
+  const sound = require('../whatsapp/audiosticker');
+  const cmd = freshCommand();
+  const s = stubs(sound);
+  let sent = null;
+  let extracted = 0;
+  const replies = [];
+
+  try {
+    s.media.findMedia = () => ({ kind: 'audio', source: { message: { audioMessage: { mimetype: 'audio/ogg; codecs=opus', ptt: true, seconds: 2 } } } });
+    s.media.download = async () => Buffer.from('voice');
+    s.put({ toOpus: async (buffer) => ({ buffer, mimetype: 'audio/ogg; codecs=opus' }), audioDuration: async () => 2 });
+    await cmd.run({ sock: {}, msg: { key: { id: 'C4' } }, jid: '123@g.us', args: ['save'], prefix: '.', botIds: [], reply: async (text) => replies.push(text) });
+    assert.match(replies.at(-1), /Sound saved/);
+
+    s.media.findMedia = () => ({ kind: 'video', source: { message: { videoMessage: { seconds: 20 } } } });
+    s.media.download = async () => Buffer.from('clip');
+    s.put({
+      extractAudio: async () => { extracted += 1; return { buffer: Buffer.from('vidsound'), mimetype: 'audio/ogg; codecs=opus', seconds: 8 }; },
+      fitSticker: async () => Buffer.from('animated'),
+      sendSoundSticker: async (_sock, jid, sticker, audio, options) => { sent = { audio, options }; },
+    });
+
+    await cmd.run({ sock: {}, msg: { key: { id: 'C5' } }, jid: '123@g.us', args: ['saved'], prefix: '.', botIds: [], reply: async (text) => replies.push(text) });
+
+    assert.strictEqual(extracted, 0, 'the video is not read for sound');
+    assert.strictEqual(sent.audio.toString(), 'voice', 'the saved sound is used');
+    assert.strictEqual(sent.options.seconds, 2);
+  } finally {
+    s.restore();
+  }
+});
+
+test('asticker save: a video gives up its own sound, ready to put on another sticker', async () => {
+  const sound = require('../whatsapp/audiosticker');
+  const cmd = freshCommand();
+  const s = stubs(sound);
+  let sent = null;
+  const replies = [];
+
+  try {
+    s.media.findMedia = () => ({ kind: 'video', source: { message: { videoMessage: { seconds: 40 } } } });
+    s.media.download = async () => Buffer.from('clip');
+    s.put({
+      extractAudio: async () => ({ buffer: Buffer.from('vidsound'), mimetype: 'audio/ogg; codecs=opus', seconds: 8 }),
+      fitSticker: async () => Buffer.from('still'),
+      sendSoundSticker: async (_sock, jid, sticker, audio, options) => { sent = { audio, options }; },
+    });
+
+    await cmd.run({ sock: {}, msg: { key: { id: 'C6' } }, jid: '123@g.us', args: ['save'], prefix: '.', botIds: [], reply: async (text) => replies.push(text) });
+    assert.match(replies.at(-1), /Sound saved\*? \(8s from the video/);
+
+    s.media.findMedia = () => ({ kind: 'image', source: { message: { imageMessage: {} } } });
+    s.media.download = async () => Buffer.from('picture');
+    await cmd.run({ sock: {}, msg: { key: { id: 'C7' } }, jid: '123@g.us', args: [], prefix: '.', botIds: [], reply: async (text) => replies.push(text) });
+
+    assert.strictEqual(sent.audio.toString(), 'vidsound', 'the saved video sound lands on the picture');
+    assert.strictEqual(sent.options.seconds, 8);
+  } finally {
+    s.restore();
+  }
+});

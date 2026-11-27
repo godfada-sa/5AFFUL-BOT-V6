@@ -1,3 +1,10 @@
+5AFFUL V6 v1.0.14 - view-once on reply, and a video keeps its own sound
+NEW IN 1.0.14
+- NEW `autoviewoncereply on` copies a view-once picture, video or voice note to your own chat when somebody replies to it with any message, or reacts to it with any emoji; `autoviewoncereply off` turns it back off.
+- NEW reply to a video that already has sound with `asticker` and the video becomes the animated sticker with its own sound on it, in one step, with no separate save. A silent video falls back to the saved sound, and `asticker saved` uses the saved sound on a video on purpose.
+CHANGED IN 1.0.14
+- CHANGED a sound sticker now carries up to 8 seconds, and the length the phone shows is the length it plays (a longer voice note is cut down instead of being passed through). `asticker save` accepts a video too, so its sound can be kept and put on another sticker.
+
 5AFFUL V6 v1.0.13 - updating works again
 FIXED IN 1.0.13
 - FIXED updating stopped with "The update zip has a broken package.json". An invisible marker (a UTF-8 BOM) had slipped into package.json; it is gone, and the bot now ignores that marker in any update file.

@@ -34,9 +34,10 @@ test('the bot has commands for the AI to learn, and some are owner only', () => 
 
 test('the changelog never leaks an owner-only command name to a member', () => {
   const [a, b] = ownerOnly;
-  const sample = `FIXED .${a.name} and .${b.name} work again`;
+  const sample = `FIXED .${a.name} and .${b.name} work again, and \`${a.name} on\` is new`;
   const redacted = knowledge.redactOwnerCommands(sample, all);
   assert.ok(!redacted.includes(`.${a.name}`) && !redacted.includes(`.${b.name}`), redacted);
+  assert.ok(!redacted.includes(a.name), 'a backticked name is redacted too');
   assert.match(redacted, /an owner command/);
 
   // whatever the newest changelog block says, a member's copy carries no owner-only name
