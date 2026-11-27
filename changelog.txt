@@ -1,3 +1,7 @@
+5AFFUL V6 v1.0.15 - a sound sticker that plays on an iPhone
+FIXED IN 1.0.15
+- FIXED a sound sticker played on Android but an iPhone showed it as a silent sticker, with no mute button; forwarding that same sticker made it play on both phones. The bot now sends it the way a phone sends a forwarded one: a plain sticker message that carries the sound, with no wrapper around it. If WhatsApp refuses that shape, the old wrapped form goes out instead, so nothing is lost. `asticker sticker` forces the old form, `asticker native` the new one, `asticker music` uses a music clip (AAC), and `asticker iphone` sends two messages with the sound under the sticker.
+
 5AFFUL V6 v1.0.14 - view-once on reply, and a video keeps its own sound
 NEW IN 1.0.14
 - NEW `autoviewoncereply on` copies a view-once picture, video or voice note to your own chat when somebody replies to it with any message, or reacts to it with any emoji; `autoviewoncereply off` turns it back off.

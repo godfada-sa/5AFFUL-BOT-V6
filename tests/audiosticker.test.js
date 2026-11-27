@@ -338,3 +338,197 @@ test('asticker save: a video gives up its own sound, ready to put on another sti
     s.restore();
   }
 });
+
+// ---- how the sound travels: sticker / music / two messages -----------------
+
+test('sound sticker: a music clip goes in as a music clip, not a voice note (no waveform, ptt off)', async () => {
+  const sound = require('../whatsapp/audiosticker');
+  let relayed = null;
+  await sound.sendSoundSticker({ waUploadToServer: async () => ({}) }, '123@g.us', Buffer.from('sticker'), undefined, {
+    audioDescriptor: { url: 'https://mmg/music', mediaKey: Buffer.alloc(32, 3), ptt: true, waveform: Buffer.from([1, 2, 3]), seconds: 8, fileLength: '99' },
+    mimetype: 'audio/mp4',
+    ptt: false,
+    prepare: async () => ({ stickerMessage: { url: 'sticker' } }),
+    relay: async (_sock, _jid, message) => { relayed = message; },
+  });
+  const inner = relayed.audioStickerMessage.message.stickerMessage.audioMessage;
+  assert.strictEqual(inner.ptt, false, 'a music clip is not a voice note');
+  assert.strictEqual(inner.waveform, undefined, 'a voice-note waveform would keep the mute badge');
+  assert.strictEqual(inner.mimetype, 'audio/mp4');
+  assert.strictEqual(inner.seconds, 8);
+});
+
+test('asticker: "music" with no file sets the mode, and the next video goes out as a music clip', async () => {
+  const store = require('../whatsapp/store');
+  const sound = require('../whatsapp/audiosticker');
+  const cmd = freshCommand();
+  const s = stubs(sound);
+  const seen = {};
+  let sent = null;
+  const replies = [];
+
+  store.updateAsticker((a) => { a.mode = 'sticker'; });
+  try {
+    await cmd.run({ sock: {}, msg: { key: { id: 'M1' } }, jid: '123@g.us', args: ['music'], prefix: '.', botIds: [], reply: async (text) => replies.push(text) });
+    assert.match(replies.at(-1), /Sound stickers: music/);
+    assert.strictEqual(store.astickerCfg().mode, 'music', 'the mode is remembered');
+
+    s.media.findMedia = () => ({ kind: 'video', source: { message: { videoMessage: { seconds: 20 } } } });
+    s.media.download = async () => Buffer.from('clip');
+    s.put({
+      extractAudio: async (_buffer, options) => {
+        seen.extract = options;
+        return { buffer: Buffer.from('music'), mimetype: 'audio/mp4', seconds: 8 };
+      },
+      fitSticker: async () => Buffer.from('animated'),
+      sendSoundSticker: async (_sock, jid, sticker, audio, options) => { sent = { audio, options }; },
+    });
+
+    await cmd.run({ sock: {}, msg: { key: { id: 'M2' } }, jid: '123@g.us', args: [], prefix: '.', botIds: [], reply: async (text) => replies.push(text) });
+
+    assert.strictEqual(seen.extract.music, true, 'the video sound is encoded as a music clip');
+    assert.strictEqual(sent.options.mimetype, 'audio/mp4');
+    assert.strictEqual(sent.options.ptt, false);
+  } finally {
+    store.updateAsticker((a) => { a.mode = 'sticker'; });
+    s.restore();
+  }
+});
+
+test('asticker: "sticker" puts the plain sound sticker back', async () => {
+  const store = require('../whatsapp/store');
+  const cmd = freshCommand();
+  const replies = [];
+  store.updateAsticker((a) => { a.mode = 'iphone'; });
+  try {
+    await cmd.run({ sock: {}, msg: { key: { id: 'S1' } }, jid: '123@g.us', args: ['sticker'], prefix: '.', botIds: [], reply: async (text) => replies.push(text) });
+    assert.strictEqual(store.astickerCfg().mode, 'sticker');
+    assert.match(replies.at(-1), /Sound stickers: sticker/);
+  } finally {
+    store.updateAsticker((a) => { a.mode = 'sticker'; });
+  }
+});
+
+test('asticker: in iphone mode every send is two messages, without typing "ios"', async () => {
+  const store = require('../whatsapp/store');
+  const sound = require('../whatsapp/audiosticker');
+  const cmd = freshCommand();
+  const s = stubs(sound);
+  let separately = null;
+  const replies = [];
+
+  store.updateAsticker((a) => { a.mode = 'iphone'; });
+  try {
+    s.media.findMedia = () => ({ kind: 'video', source: { message: { videoMessage: { seconds: 15 } } } });
+    s.media.download = async () => Buffer.from('clip');
+    s.put({
+      extractAudio: async () => ({ buffer: Buffer.from('vidsound'), mimetype: 'audio/ogg; codecs=opus', seconds: 8 }),
+      fitSticker: async () => Buffer.from('animated'),
+      sendSeparately: async (_sock, jid, sticker, audio, options) => { separately = { sticker, audio, options }; },
+      sendSoundSticker: async () => { throw new Error('the embedded path must not run in iphone mode'); },
+    });
+
+    await cmd.run({ sock: {}, msg: { key: { id: 'I1' } }, jid: '123@g.us', args: [], prefix: '.', botIds: [], reply: async (text) => replies.push(text) });
+
+    assert.ok(separately, 'two messages were sent');
+    assert.strictEqual(separately.audio.toString(), 'vidsound');
+    assert.strictEqual(separately.options.seconds, 8);
+    assert.match(replies.at(-1), /Sent separately/);
+  } finally {
+    store.updateAsticker((a) => { a.mode = 'sticker'; });
+    s.restore();
+  }
+});
+
+test('sound sticker: the two-message way hangs the sound under the sticker it belongs to', async () => {
+  const sound = require('../whatsapp/audiosticker');
+  const calls = [];
+  const sock = {
+    sendMessage: async (jid, content, options) => {
+      calls.push({ jid, content, options });
+      return { key: { id: 'STICKER1', remoteJid: jid, fromMe: true } };
+    },
+  };
+  await sound.sendSeparately(sock, '123@g.us', Buffer.from('s'), Buffer.from('a'), { quoted: { key: { id: 'CMD' } } });
+  assert.strictEqual(calls.length, 2);
+  assert.ok(Buffer.isBuffer(calls[0].content.sticker), 'the sticker goes first');
+  assert.strictEqual(calls[1].content.ptt, true, 'the sound is a voice note');
+  assert.strictEqual(calls[1].options.quoted.key.id, 'STICKER1', 'the sound is quoted to the sticker, not to the command');
+});
+
+// ---- the shape a phone itself uses when it forwards a sound sticker --------
+
+const readVarint = (buf, start) => {
+  let shift = 0;
+  let value = 0;
+  let i = start;
+  while (i < buf.length) {
+    const b = buf[i++];
+    value |= (b & 0x7f) << shift;
+    if (!(b & 0x80)) return [value, i];
+    shift += 7;
+  }
+  throw new Error('truncated varint');
+};
+
+const topFields = (buf) => {
+  const out = [];
+  let i = 0;
+  while (i < buf.length) {
+    const [key, afterKey] = readVarint(buf, i);
+    i = afterKey;
+    const field = key >>> 3;
+    const wire = key & 7;
+    out.push(field);
+    if (wire === 2) {
+      const [len, afterLen] = readVarint(buf, i);
+      i = afterLen + len;
+    } else if (wire === 0) {
+      const [, afterValue] = readVarint(buf, i);
+      i = afterValue;
+    } else if (wire === 5) i += 4;
+    else if (wire === 1) i += 8;
+    else throw new Error(`unexpected wire type ${wire}`);
+  }
+  return out;
+};
+
+test('sound sticker: the native shape is a plain sticker message carrying the sound, with no field 134', async () => {
+  const lib = await sound.install();
+  let relayed = null;
+  const result = await sound.sendSoundSticker({ waUploadToServer: async () => ({}) }, '123@g.us', Buffer.from('sticker'), undefined, {
+    audioDescriptor: { url: 'https://mmg/sound', mediaKey: Buffer.alloc(32, 5), ptt: true, seconds: 6, fileLength: '10' },
+    mimetype: 'audio/ogg; codecs=opus',
+    shape: 'plain',
+    prepare: async () => ({ stickerMessage: { url: 'sticker' } }),
+    relay: async (_sock, _jid, message) => { relayed = message; },
+  });
+
+  assert.strictEqual(relayed.audioStickerMessage, undefined, 'no future-proof wrapper');
+  assert.ok(relayed.stickerMessage && relayed.stickerMessage.audioMessage, 'the sound rides in the sticker message');
+  const fields = topFields(lib.proto.Message.encode(relayed).finish());
+  assert.ok(!fields.includes(134), 'field 134 must not be on the wire');
+  assert.ok(fields.includes(26), 'the plain sticker message is on the wire');
+  assert.strictEqual(result.shape, 'plain');
+});
+
+test('sound sticker: if the server refuses the plain shape, the wrapped one still goes out', async () => {
+  const shapes = [];
+  let calls = 0;
+  const result = await sound.sendSoundSticker({ waUploadToServer: async () => ({}) }, '123@g.us', Buffer.from('sticker'), undefined, {
+    audioDescriptor: { url: 'https://mmg/sound', mediaKey: Buffer.alloc(32, 6), ptt: true, seconds: 6, fileLength: '10' },
+    mimetype: 'audio/ogg; codecs=opus',
+    shape: 'plain',
+    prepare: async () => ({ stickerMessage: { url: 'sticker' } }),
+    relay: async (_sock, _jid, message) => {
+      calls += 1;
+      shapes.push(message.audioStickerMessage ? 'wrapped' : 'plain');
+      if (calls === 1) throw new Error('the server did not accept that message');
+      return 'ID2';
+    },
+  });
+
+  assert.deepStrictEqual(shapes, ['plain', 'wrapped'], 'the plain shape is tried first, then the wrapper');
+  assert.strictEqual(result.shape, 'wrapped');
+  assert.strictEqual(result.key.id, 'ID2');
+});
